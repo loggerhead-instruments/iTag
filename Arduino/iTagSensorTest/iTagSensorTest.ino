@@ -5,8 +5,7 @@
 
 #include <Wire.h>
 #include <SPI.h>
-
-//#include <SdFat.h>
+#include <SD.h>
 
 // To Do:
 // - O2 sensor
@@ -21,6 +20,7 @@ const int BURN = A5;
 const int vSense = A4; 
 const int VHF = PIN_LED_RXL;
 const int O2POW = 4;
+const int chipSelect = 10;
 
 int pressure_sensor;
 
@@ -77,12 +77,23 @@ volatile byte bufferposRGB=0;
 byte halfbufRGB = RGBBUFFERSIZE/2;
 boolean firstwrittenRGB;
 
+File dataFile;
+
 void setup() {
   SerialUSB.begin(57600);
+  
   delay(5000);
   Wire.begin();
   
   SerialUSB.println("iTag sensor test");
+
+  // see if the card is present and can be initialized:
+  if (!SD.begin(chipSelect)) {
+    SerialUSB.println("Card failed, or not present");
+    // don't do anything more:
+    return;
+  }
+  SerialUSB.println("card initialized"); 
 }
 
 void loop() {
@@ -94,7 +105,9 @@ void loop() {
 
 void sensorInit(){
  // initialize and test sensors
-
+  String dataString = "";
+  dataFile = SD.open("log.txt", FILE_WRITE);
+  SerialUSB.println("Sensor Init");
   pinMode(ledGreen, OUTPUT);
   pinMode(BURN, OUTPUT);
   pinMode(VHF, OUTPUT);
@@ -106,6 +119,9 @@ void sensorInit(){
   digitalWrite(BURN, HIGH);
   digitalWrite(VHF, HIGH);
   digitalWrite(O2POW, HIGH);
+
+  
+  SerialUSB.println("Green LED on");
 
   // RGB
   islInit(); 
@@ -120,6 +136,8 @@ void sensorInit(){
   digitalWrite(ledGreen, LOW);
   digitalWrite(BURN, LOW);
   digitalWrite(VHF, LOW);
+
+  SerialUSB.println("Green LED off");
 
 // battery voltage measurement
   SerialUSB.print("Battery: ");
@@ -168,6 +186,14 @@ void sensorInit(){
       delay(500);
       pollImu(); //will print out values from FIFO
   }
+
+  dataString += String(islRed);
+  dataString += ",";
+  dataString += String(islGreen);
+  dataString += ",";
+  dataString += String(islBlue);
+  dataFile.println(dataString);
+  dataFile.close();
 }
 
 boolean pollImu(){
