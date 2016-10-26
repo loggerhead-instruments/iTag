@@ -19,7 +19,7 @@ int kellerInit(){
    { 
     temp[i] = Wire.read();  // receive one byte
     i++;
-    if (printDiags) SerialUSB.println(temp[i]);
+    if (printDiags) SerialUSB.println(temp[i-1]);
    } 
    return (i>0);  //return 1 if bytes read
 }
@@ -39,6 +39,7 @@ void kellerRead(){
   { 
     temp[i] = Wire.read();  // receive one byte
     i++;
+    if(printDiags) SerialUSB.println(temp[i-1]);
   } 
   float pressure = (float) ((uint16_t) temp[1] << 8 | (uint16_t) temp[2]);
   float milliBar = ((pressure - 16384.0) * (pAt49152 - pAt16384) / 32768.0 + pAt16384) * 1000.0;

@@ -108,18 +108,7 @@ void Read_Gyro(int numbytestoread)
 //  Wire.beginTransmission(GyroAddress); 
 //  Wire.write(0x74);        //sends address to read from  0x3B is direct read; 0x74 is FIFO
 //  Wire.endTransmission(); //end transmission
- /*
-  int numblocks=numbytestoread/14;  //because wi re will only get 32 or fewer bytes
-  for(int n=0; n<numblocks; n++)
-  {
-     Wire.requestFrom(GyroAddress, 14);    // request 20 bytes from device
-    while(Wire.available())   // ((Wire.available())&&(i<6))
-    { 
-      buffer[i] = Wire.read();  // receive one byte
-      i++;
-    }
-  }
-  */
+
 
   // reading one byte at a time
   for(int n=0; n<numbytestoread; n++)

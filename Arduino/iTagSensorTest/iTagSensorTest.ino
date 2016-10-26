@@ -6,12 +6,11 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <SD.h>
+#include <RTCZero.h>
 
 // To Do:
 // - O2 sensor
-// - Keller sensor
-// - SD test (write values to ASCII file)
-// - Setup to use interrupt from IMU
+// - Setup timer interrupt with sleep to read IMU
 
 int printDiags = 1;
 
@@ -21,13 +20,15 @@ const int vSense = A4;
 const int VHF = PIN_LED_RXL;
 const int O2POW = 4;
 const int chipSelect = 10;
+const int mpuInterrupt = 13;
 
 int pressure_sensor;
 
+volatile int state = LOW;
 
 // IMU
 int FIFOpts;
-#define BUFFERSIZE 140 // used this length because it is divisible by 20 bytes (e.g. A*3,M*3,G*3,T) and 14 (w/out mag)
+#define BUFFERSIZE 280 // used this length because it is divisible by 20 bytes (e.g. A*3,M*3,G*3,T) and 14 (w/out mag)
 byte imuBuffer[BUFFERSIZE]; // buffer used to store IMU sensor data before writes in bytes
 int16_t accel_x;
 int16_t accel_y;
@@ -79,12 +80,28 @@ boolean firstwrittenRGB;
 
 File dataFile;
 
+/* Create an rtc object */
+RTCZero rtc;
+
+volatile unsigned int irq_ovf_count = 0; // keep track of IMU polling
+
+/* Change these values to set the current initial time */
+const byte seconds = 0;
+const byte minutes = 00;
+const byte hours = 17;
+
+/* Change these values to set the current initial date */
+const byte day = 17;
+const byte month = 11;
+const byte year = 15;
+
+
 void setup() {
   SerialUSB.begin(57600);
   
-  delay(5000);
+  delay(10000);
   Wire.begin();
-  
+ // Wire.setClock(100);  // set I2C clock to 100 kHz
   SerialUSB.println("iTag sensor test");
 
   // see if the card is present and can be initialized:
@@ -93,7 +110,7 @@ void setup() {
     // don't do anything more:
     return;
   }
-  SerialUSB.println("card initialized"); 
+  SerialUSB.println("Card initialized"); 
 }
 
 void loop() {
@@ -108,19 +125,26 @@ void sensorInit(){
   String dataString = "";
   dataFile = SD.open("log.txt", FILE_WRITE);
   SerialUSB.println("Sensor Init");
-  pinMode(ledGreen, OUTPUT);
+
+  SerialUSB.println("Setting up outputs...");
+  //pinMode(ledGreen, OUTPUT);
+  SerialUSB.println("ledGreen output");
+  //REG_PORT_DIRSET0 = PORT_PA27;
   pinMode(BURN, OUTPUT);
   pinMode(VHF, OUTPUT);
   pinMode(vSense, INPUT);
   pinMode(O2POW, OUTPUT);
 
+
   // Digital IO
-  digitalWrite(ledGreen, HIGH);
+  
+  SerialUSB.println("Turning green LED on");
+ // digitalWrite(ledGreen, HIGH);
+  //REG_PORT_OUTSET0 = PORT_PA27;
   digitalWrite(BURN, HIGH);
   digitalWrite(VHF, HIGH);
   digitalWrite(O2POW, HIGH);
 
-  
   SerialUSB.println("Green LED on");
 
   // RGB
@@ -130,10 +154,11 @@ void sensorInit(){
       SerialUSB.print("R:"); SerialUSB.print(islRed); SerialUSB.print("\t");
       SerialUSB.print("G:"); SerialUSB.print(islGreen); SerialUSB.print("\t");
       SerialUSB.print("B:"); SerialUSB.println(islBlue);
-      delay(1000);
+      delay(500);
   }
   
-  digitalWrite(ledGreen, LOW);
+ // digitalWrite(ledGreen, LOW);
+  //REG_PORT_OUTCLR0 = PORT_PA27;
   digitalWrite(BURN, LOW);
   digitalWrite(VHF, LOW);
 
@@ -151,7 +176,7 @@ void sensorInit(){
     pressure_sensor = 2;   // 2 if present
     SerialUSB.println("Keller Pressure Detected");
     kellerConvert();
-    delay(5);
+    delay(10);
     kellerRead();
     SerialUSB.print("Depth: "); SerialUSB.println(depth);
     SerialUSB.print("Temperature: "); SerialUSB.println(temperature);
@@ -180,12 +205,20 @@ void sensorInit(){
   SerialUSB.print("Phase:"); SerialUSB.println(o2Phase());
   SerialUSB.print("Amplitude:"); SerialUSB.println(o2Amplitude());
 
-  // IMU
+
+  rtc.begin();
+  rtc.setTime(hours, minutes, seconds);
+  rtc.setDate(day, month, year);
+  //rtc.attachInterrupt(alarmMatch);
+ // rtc.enableAlarm(rtc.MATCH_SS);
+
+  // IMU with sleep
   mpuInit(1);
-  for(int n=0; n<15; n++){
-      delay(500);
-      pollImu(); //will print out values from FIFO
-  }
+  startTimer();
+
+  while(irq_ovf_count < 20);
+  stopTimer();
+  mpuInit(0); //gyro to sleep
 
   dataString += String(islRed);
   dataString += ",";
@@ -198,8 +231,8 @@ void sensorInit(){
 
 boolean pollImu(){
   FIFOpts=getImuFifo();
-  //SerialUSB.print("IMU FIFO pts: ");
-  //if (printDiags) SerialUSB.println(FIFOpts);
+  SerialUSB.print("IMU FIFO pts: ");
+  SerialUSB.println(FIFOpts);
   if(FIFOpts>BUFFERSIZE)  //once have enough data for a block, download and write to disk
   {
      Read_Gyro(BUFFERSIZE);  //download block from FIFO
@@ -239,3 +272,61 @@ boolean pollImu(){
   }
   return false;
 }
+
+void startTimer(){
+  
+  // Enable clock for TC 
+  REG_GCLK_CLKCTRL = (uint16_t) (GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID ( GCM_TCC2_TC3 ) ) ;
+  while ( GCLK->STATUS.bit.SYNCBUSY == 1 ); // wait for sync 
+
+  // The type cast must fit with the selected timer mode 
+  TcCount16* TC = (TcCount16*) TC3; // get timer struct
+
+  TC->CTRLA.reg &= ~TC_CTRLA_ENABLE;   // Disable TCx
+  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
+
+  TC->CTRLA.reg |= TC_CTRLA_MODE_COUNT16;  // Set Timer counter Mode to 16 bits
+  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
+  TC->CTRLA.reg |= TC_CTRLA_WAVEGEN_NFRQ; // Set TC as normal Normal Frq
+  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
+
+  TC->CTRLA.bit.RUNSTDBY = 1;  //allow to run in standby
+  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
+  
+  TC->CTRLA.reg |= TC_CTRLA_PRESCALER_DIV64;   // Set prescaler
+  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
+  
+//  TC->PER.reg = 0xFF;   // Set counter Top using the PER register but the 16/32 bit timer counts allway to max  
+ // while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
+
+  TC->CC[0].reg = 0xFFF;
+  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
+  
+  // Interrupts 
+  TC->INTENSET.reg = 0;              // disable all interrupts
+  TC->INTENSET.bit.OVF = 1;          // disable overflow
+  TC->INTENSET.bit.MC0 = 0;          // enable compare match to CC0
+
+  // Enable InterruptVector
+  NVIC_EnableIRQ(TC3_IRQn);
+
+  // Enable TC
+  TC->CTRLA.reg |= TC_CTRLA_ENABLE;
+  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
+}
+
+void stopTimer(){
+  // TcCount16* TC = (TcCount16*) TC3; // get timer struct
+   NVIC_DisableIRQ(TC3_IRQn);
+}
+
+void TC3_Handler()
+{
+    TcCount16* TC = (TcCount16*) TC3; // get timer struct
+  if (TC->INTFLAG.bit.OVF == 1) {  // A overflow caused the interrupt
+      TC->INTFLAG.bit.OVF = 1;    // writing a one clears the flag ovf flag
+      while(pollImu());
+      irq_ovf_count++;
+  }
+}
+
