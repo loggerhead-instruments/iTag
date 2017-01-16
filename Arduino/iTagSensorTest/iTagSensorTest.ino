@@ -215,7 +215,6 @@ void sensorInit(){
   // IMU with sleep
   mpuInit(1);
   startTimer();
-
   while(irq_ovf_count < 20);
   stopTimer();
   mpuInit(0); //gyro to sleep
@@ -327,6 +326,7 @@ void TC3_Handler()
       TC->INTFLAG.bit.OVF = 1;    // writing a one clears the flag ovf flag
       while(pollImu());
       irq_ovf_count++;
+      rtc.standbyMode(); // go to sleep
   }
 }
 
