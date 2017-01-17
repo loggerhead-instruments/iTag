@@ -26,7 +26,7 @@
 // - Define reset function
 // - skip menu if reset and not connected to USB
 
-int printDiags = 1;
+int printDiags = 0;
 
 float sensor_srate = 1.0;
 float imu_srate = 100.0;
@@ -51,6 +51,7 @@ const int O2POW = 4;
 const int chipSelect = 10;
 const int mpuInterrupt = 13;
 
+byte toggleLED = 1;
 int pressure_sensor;
 
 // IMU
@@ -139,8 +140,8 @@ void setup() {
   SerialUSB.begin(57600);
   delay(10000);
   Wire.begin();
- // Wire.setClock(100);  // set I2C clock to 100 kHz
-  SerialUSB.println("iTag sensor test");
+  Wire.setClock(400);  // set I2C clock to k kHz
+  SerialUSB.println("iTag");
 
   // see if the card is present and can be initialized:
   if (!SD.begin(chipSelect)) {
@@ -148,58 +149,42 @@ void setup() {
     // don't do anything more:
     return;
   }
-  SerialUSB.println("Card initialized"); 
+  if(printDiags) SerialUSB.println("Card initialized"); 
   sensorInit();
+  if(printDiags) SerialUSB.println("Sensors initialized");
   setupDataStructures();
+  if(printDiags) SerialUSB.println("Data structures initialized");
   FileInit();
-
+  if(printDiags) SerialUSB.println("File initialized");
   resetGyroFIFO(); // reset Gyro FIFO
-  startTimer(); // start timer
+  if(printDiags) SerialUSB.println("Starting main loop");
+  //startTimer(); // start timer
+  //rtc.enableAlarm(rtc.MATCH_SS); // alarm once per second
+  //rtc.attachInterrupt(alarmMatch);
+  //alarmMatch();
 }
 
+byte newSecond;
+byte oldSecond;
 void loop() {
-    
    // IMU
-    while (pollImu()){
+    if (pollImu(0)){
       bufCount++;
+      int startTime = millis();
       if(dataFile.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(dataFile.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
-          if(printDiags){
-              Serial.print("i");
-           }
+      if(printDiags){
+         SerialUSB.print("Write time: ");
+         SerialUSB.print(millis() - startTime);
+         SerialUSB.println(" ms");
+       }
     }
 
-    if(irq_ovf_count > 20){
-      irq_ovf_count = 0;
-      islRead(); 
-
-      // MS5803 pressure and temperature
-      if (pressure_sensor==1){
-        if(togglePress){
-          readPress();
-          updateTemp();
-          togglePress = 0;
-          if(printDiags) Serial.println("p");
-        }
-        else{
-          readTemp();
-          updatePress();
-          togglePress = 1;
-          if(printDiags) Serial.println("t");
-        }
-      }
-      // Keller PA7LD pressure and temperature
-      if (pressure_sensor==2){
-        kellerRead();
-        kellerConvert();  // start conversion for next reading
-      }    
-
-      // Oxygen
-      incrementO2bufpos(o2Temperature());
-      incrementO2bufpos(o2Phase());
-      incrementO2bufpos(o2Amplitude());
-  
-      sampleSensors(); // copies sensor values to appropriate buffers
+    // sample other sensors once per second
+    newSecond = rtc.getSeconds();
+    if (newSecond != oldSecond) {
+      sampleSensors();
+      oldSecond = newSecond;
     }
     
     // write Pressure & Temperature to file
@@ -246,27 +231,25 @@ void loop() {
       if(LEDSON | introPeriod) digitalWrite(ledGreen,HIGH);
       if(dataFile.write((uint8_t *)&sidRec[0],sizeof(SID_REC))==-1) resetFunc();
       if(dataFile.write((uint8_t *)&O2buffer[halfbufO2], halfbufO2)==-1) resetFunc();     
-      time2writeRGB = 0;
+      time2writeO2 = 0;
       if(LEDSON | introPeriod) digitalWrite(ledGreen,LOW);
     }
-      
+
     if(bufCount >= nbufsPerFile){       // time to stop?
       introPeriod = 0;  //LEDS on for first file
       dataFile.close();
       FileInit();  // make a new file
       bufCount = 0;
     }
+
+  //rtc.standbyMode(); // sleep  
 }
 
 void sensorInit(){
  // initialize and test sensors
-  String dataString = "";
-  dataFile = SD.open("log.txt", FILE_WRITE);
   SerialUSB.println("Sensor Init");
 
-  SerialUSB.println("Setting up outputs...");
-  //pinMode(ledGreen, OUTPUT);
-  SerialUSB.println("ledGreen output");
+  pinMode(ledGreen, OUTPUT);
   //REG_PORT_DIRSET0 = PORT_PA27;
   pinMode(BURN, OUTPUT);
   pinMode(VHF, OUTPUT);
@@ -274,35 +257,34 @@ void sensorInit(){
   pinMode(O2POW, OUTPUT);
 
   // Digital IO
-  SerialUSB.println("Turning green LED on");
- // digitalWrite(ledGreen, HIGH);
+ // SerialUSB.println("Turning green LED on");
+  digitalWrite(ledGreen, HIGH);
   //REG_PORT_OUTSET0 = PORT_PA27;
   digitalWrite(BURN, HIGH);
   digitalWrite(VHF, HIGH);
   digitalWrite(O2POW, HIGH);
-  SerialUSB.println("Green LED on");
+ // SerialUSB.println("Green LED on");
 
-  // RGB
-  islInit(); 
-  for(int n=0; n<10; n++){
-      islRead();
-      SerialUSB.print("R:"); SerialUSB.print(islRed); SerialUSB.print("\t");
-      SerialUSB.print("G:"); SerialUSB.print(islGreen); SerialUSB.print("\t");
-      SerialUSB.print("B:"); SerialUSB.println(islBlue);
-      delay(500);
-  }
   
-  digitalWrite(ledGreen, LOW);
-  //REG_PORT_OUTCLR0 = PORT_PA27;
   digitalWrite(BURN, LOW);
   digitalWrite(VHF, LOW);
-
-  SerialUSB.println("Green LED off");
 
 // battery voltage measurement
   SerialUSB.print("Battery: ");
   SerialUSB.println(analogRead(vSense));
+  
+  delay(100); // this delay is needed to give sensors time
 
+  // RGB
+  islInit(); 
+  SerialUSB.println("RGB");
+  for(int n=0; n<4; n++){
+      islRead();
+      SerialUSB.print("R:"); SerialUSB.print(islRed); SerialUSB.print("\t");
+      SerialUSB.print("G:"); SerialUSB.print(islGreen); SerialUSB.print("\t");
+      SerialUSB.print("B:"); SerialUSB.println(islBlue);
+      delay(200);
+  }
   
 // Pressure--auto identify which if any is present
   pressure_sensor = 0;
@@ -339,28 +321,21 @@ void sensorInit(){
   SerialUSB.print("Phase:"); SerialUSB.println(o2Phase());
   SerialUSB.print("Amplitude:"); SerialUSB.println(o2Amplitude());
 
-
-  rtc.begin();
-  rtc.setTime(hour, minute, second);
-  rtc.setDate(day, month, year);
-  //rtc.attachInterrupt(alarmMatch);
- // rtc.enableAlarm(rtc.MATCH_SS);
-
   // IMU
   mpuInit(1);
   //startTimer();
   delay(1000);
-  pollImu();
+  pollImu(printDiags);
+
   //while(irq_ovf_count < 20);
   //stopTimer();
 
-  dataString += String(islRed);
-  dataString += ",";
-  dataString += String(islGreen);
-  dataString += ",";
-  dataString += String(islBlue);
-  dataFile.println(dataString);
-  dataFile.close();
+  rtc.begin();
+  rtc.setTime(hour, minute, second);
+  rtc.setDate(day, month, year);
+  
+  digitalWrite(ledGreen, LOW);
+  //REG_PORT_OUTCLR0 = PORT_PA27;
 }
 
 // increment PTbuffer position by 1 sample. This does not check for overflow, because collected at a slow rate
@@ -418,48 +393,51 @@ void incrementO2bufpos(float val){
   }
 }
 
-boolean pollImu(){
+int pollImu(int imuDiags){
+  int startTime = millis();
   FIFOpts=getImuFifo();
-  SerialUSB.print("IMU FIFO pts: ");
-  SerialUSB.println(FIFOpts);
-  if(FIFOpts>BUFFERSIZE)  //once have enough data for a block, download and write to disk
+  //if (printDiags) SerialUSB.print("IMU FIFO pts: ");
+  //if (printDiags) SerialUSB.println(FIFOpts);
+  if(FIFOpts>BUFFERSIZE)  //once have enough data for a block, download to buffer
   {
      Read_Gyro(BUFFERSIZE);  //download block from FIFO
-  
+     if(printDiags){
+     SerialUSB.print("IMU Read time: ");
+     SerialUSB.print(millis() - startTime);
+     SerialUSB.println("ms");
+     SerialUSB.println(FIFOpts);
+     }
+    if (imuDiags){
+      // print out first line of block
+      // MSB byte first, then LSB, X,Y,Z
+      accel_x = (int16_t) ((int16_t)imuBuffer[0] << 8 | imuBuffer[1]);    
+      accel_y = (int16_t) ((int16_t)imuBuffer[2] << 8 | imuBuffer[3]);   
+      accel_z = (int16_t) ((int16_t)imuBuffer[4] << 8 | imuBuffer[5]);    
+      
+      gyro_temp = (int16_t) (((int16_t)imuBuffer[6]) << 8 | imuBuffer[7]);   
      
-    if (printDiags){
-    // print out first line of block
-    // MSB byte first, then LSB, X,Y,Z
-    accel_x = (int16_t) ((int16_t)imuBuffer[0] << 8 | imuBuffer[1]);    
-    accel_y = (int16_t) ((int16_t)imuBuffer[2] << 8 | imuBuffer[3]);   
-    accel_z = (int16_t) ((int16_t)imuBuffer[4] << 8 | imuBuffer[5]);    
-    
-    gyro_temp = (int16_t) (((int16_t)imuBuffer[6]) << 8 | imuBuffer[7]);   
-   
-    gyro_x = (int16_t)  (((int16_t)imuBuffer[8] << 8) | imuBuffer[9]);   
-    gyro_y = (int16_t)  (((int16_t)imuBuffer[10] << 8) | imuBuffer[11]); 
-    gyro_z = (int16_t)  (((int16_t)imuBuffer[12] << 8) | imuBuffer[13]);   
-    
-    magnetom_x = (int16_t)  (((int16_t)imuBuffer[14] << 8) | imuBuffer[15]);   
-    magnetom_y = (int16_t)  (((int16_t)imuBuffer[16] << 8) | imuBuffer[17]);   
-    magnetom_z = (int16_t)  (((int16_t)imuBuffer[18] << 8) | imuBuffer[19]);  
-
-    SerialUSB.print("a/g/m/t:\t");
-    SerialUSB.print( accel_x); SerialUSB.print("\t");
-    SerialUSB.print( accel_y); SerialUSB.print("\t");
-    SerialUSB.print( accel_z); SerialUSB.print("\t");
-    SerialUSB.print(gyro_x); SerialUSB.print("\t");
-    SerialUSB.print(gyro_y); SerialUSB.print("\t");
-    SerialUSB.print(gyro_z); SerialUSB.print("\t");
-    SerialUSB.print(magnetom_x); SerialUSB.print("\t");
-    SerialUSB.print(magnetom_y); SerialUSB.print("\t");
-    SerialUSB.print(magnetom_z); SerialUSB.print("\t");
-    SerialUSB.println((float) gyro_temp/337.87+21);
+      gyro_x = (int16_t)  (((int16_t)imuBuffer[8] << 8) | imuBuffer[9]);   
+      gyro_y = (int16_t)  (((int16_t)imuBuffer[10] << 8) | imuBuffer[11]); 
+      gyro_z = (int16_t)  (((int16_t)imuBuffer[12] << 8) | imuBuffer[13]);   
+      
+      magnetom_x = (int16_t)  (((int16_t)imuBuffer[14] << 8) | imuBuffer[15]);   
+      magnetom_y = (int16_t)  (((int16_t)imuBuffer[16] << 8) | imuBuffer[17]);   
+      magnetom_z = (int16_t)  (((int16_t)imuBuffer[18] << 8) | imuBuffer[19]);  
+  
+      SerialUSB.print("a/g/m/t:\t");
+      SerialUSB.print( accel_x); SerialUSB.print("\t");
+      SerialUSB.print( accel_y); SerialUSB.print("\t");
+      SerialUSB.print( accel_z); SerialUSB.print("\t");
+      SerialUSB.print(gyro_x); SerialUSB.print("\t");
+      SerialUSB.print(gyro_y); SerialUSB.print("\t");
+      SerialUSB.print(gyro_z); SerialUSB.print("\t");
+      SerialUSB.print(magnetom_x); SerialUSB.print("\t");
+      SerialUSB.print(magnetom_y); SerialUSB.print("\t");
+      SerialUSB.print(magnetom_z); SerialUSB.print("\t");
+      SerialUSB.println((float) gyro_temp/337.87+21);
     }
-    
-    return true;
   }
-  return false;
+  return FIFOpts>BUFFERSIZE;
 }
 
 void startTimer(){
@@ -515,6 +493,13 @@ void TC3_Handler()
   if (TC->INTFLAG.bit.OVF == 1) {  // A overflow caused the interrupt
       TC->INTFLAG.bit.OVF = 1;    // writing a one clears the flag ovf flag
       irq_ovf_count++;
+//      if(toggleLED) {
+//        toggleLED = LOW;
+//      }
+//      else{
+//        toggleLED = HIGH;
+//      }
+//      digitalWrite(ledGreen,toggleLED);
   }
 }
 
@@ -651,25 +636,6 @@ int addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SENS
   sidRec[i].NU[2] = 300; 
 }
 
-
-/*
-void sdInit(){
-     if (!(SD.begin(10))) {
-    // stop here if no SD card, but print a message
-    Serial.println("Unable to access the SD card");
-    
-    while (1) {
-      cDisplay();
-      display.println("SD error. Restart.");
-      displayClock(getTeensy3Time(), BOTTOM);
-      display.display();
-      delay(1000);
-      
-    }
-  }
-}
-*/
-
 void FileInit()
 {
    char filename[20];
@@ -694,18 +660,19 @@ void FileInit()
       logFile.close();
    }
    else{
-    if(printDiags) Serial.print("Log open fail.");
+    if(printDiags) SerialUSB.print("Log open fail.");
     resetFunc();
    }
-    
+   if(printDiags) SerialUSB.println("Log file initialized");
+   
    dataFile = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
-   Serial.println(filename);
+   if(printDiags) SerialUSB.println(filename);
    
    while (!dataFile){
     file_count += 1;
     sprintf(filename,"F%06d.amx",file_count); //if can't open just use count
     dataFile = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
-    Serial.println(filename);
+    if(printDiags) SerialUSB.println(filename);
    }
   //amx file header
   dfh.voltage = voltage;
@@ -725,19 +692,48 @@ void FileInit()
   addSid(3, "IMU", RAW_SID, BUFFERSIZE / 2, sensor[3], DFORM_SHORT, imu_srate);
   addSid(4, "END", 0, 0, sensor[4], 0, 0);
   if(printDiags){
-    Serial.print("Buffers: ");
-    Serial.println(nbufsPerFile);
+    SerialUSB.print("Buffers: ");
+    SerialUSB.println(nbufsPerFile);
   }
+  digitalWrite(ledGreen, LOW);
 }
 
 void sampleSensors(void){  //interrupt at update_rate
+
+    
+
+    // MS5803 pressure and temperature
+    if (pressure_sensor==1){
+      if(togglePress){
+        readPress();
+        updateTemp();
+        togglePress = 0;
+        if(printDiags) SerialUSB.println("p");
+      }
+      else{
+        readTemp();
+        updatePress();
+        togglePress = 1;
+        if(printDiags) SerialUSB.println("t");
+      }
+    }
+    
+    // Keller PA7LD pressure and temperature
+    if (pressure_sensor==2){
+      kellerRead();
+      kellerConvert();  // start conversion for next reading
+    }    
+
+    // Oxygen
+    incrementO2bufpos(o2Temperature());
+    incrementO2bufpos(o2Phase());
+    incrementO2bufpos(o2Amplitude());
+
+    // RGB
+    islRead(); 
     incrementRGBbufpos(islRed);
     incrementRGBbufpos(islGreen);
     incrementRGBbufpos(islBlue);
-    // Serial.print("RGB:");Serial.print("\t");
-    //Serial.print(islRed); Serial.print("\t");
-    //Serial.print(islGreen); Serial.print("\t");
-    //Serial.println(islBlue); 
   
   if (pressure_sensor==1) calcPressTemp(); // MS5803 pressure and temperature
   if (pressure_sensor>0){  //both Keller and MS5803
@@ -763,5 +759,15 @@ void getTime(){
   hour = rtc.getHours();
   minute = rtc.getMinutes();
   second = rtc.getSeconds();
+}
+
+void alarmMatch(){
+  // wake from interrupt
+  SerialUSB.print("ALARM ");
+  SerialUSB.println(rtc.getSeconds());
+  byte alarmSecond = rtc.getSeconds() + 1;
+  if(alarmSecond == 60) alarmSecond = 0;
+  rtc.setAlarmSeconds(alarmSecond);
+  sampleSensors();
 }
 
