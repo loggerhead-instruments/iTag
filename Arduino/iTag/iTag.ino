@@ -326,9 +326,13 @@ void sensorInit(){
   // Presens O2
   SerialUSB.print("O2 status:");
   SerialUSB.println(o2Status());
-  SerialUSB.print("Temperature:"); SerialUSB.println(o2Temperature());
-  SerialUSB.print("Phase:"); SerialUSB.println(o2Phase());
-  SerialUSB.print("Amplitude:"); SerialUSB.println(o2Amplitude());
+  for (int n=0; n<5; n++){
+    SerialUSB.print("Temperature:"); SerialUSB.println(o2Temperature());
+    SerialUSB.print("Phase:"); SerialUSB.println(o2Phase());
+    SerialUSB.print("Amplitude:"); SerialUSB.println(o2Amplitude());
+    delay(1000);
+  }
+
 
   // IMU
   mpuInit(1);
@@ -708,9 +712,6 @@ void FileInit()
 }
 
 void sampleSensors(void){  //interrupt at update_rate
-
-    
-
     // MS5803 pressure and temperature
     if (pressure_sensor==1){
       if(togglePress){
