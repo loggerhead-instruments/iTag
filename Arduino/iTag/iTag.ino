@@ -10,14 +10,10 @@
 #include "amx32.h"
 
 // To Do:
-// - write sensor data to AMX files
-// - add O2 readings
 // - Data download over USB
 //    - Show files
 //    - Download all
-//    - Download specific files
 //    - Delete all files
-//    - Reformat card
 //    - Set time
 //    - Poll sensors
 //    - get ID of chip
@@ -26,12 +22,16 @@
 // - Define reset function
 // - skip menu if reset and not connected to USB
 
-int printDiags = 0;
+int printDiags = 1;
+// Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
+#define MS5803_01bar 32768.0
+#define MS5803_30bar 819.2
+float MS5803_constant = MS5803_30bar; //set to 1 bar sensor
 
 float sensor_srate = 1.0;
 float imu_srate = 100.0;
 
-int nbufsPerFile = 60; // number of imuBuffers per file
+int nbufsPerFile = 30; // number of seconds per file
 int bufCount = 0;
 int file_count = 0;
 int introPeriod = 1;
@@ -56,7 +56,7 @@ int pressure_sensor;
 
 // IMU
 int FIFOpts;
-#define BUFFERSIZE 280 // used this length because it is divisible by 20 bytes (e.g. A*3,M*3,G*3,T) and 14 (w/out mag)
+#define BUFFERSIZE 280 // used this length because it is divisible by 18 bytes (e.g. A*3,M*3,G*3)
 byte imuBuffer[BUFFERSIZE]; // buffer used to store IMU sensor data before writes in bytes
 int16_t accel_x;
 int16_t accel_y;
@@ -83,7 +83,7 @@ float O2amplitude;
 byte Tbuff[3];
 byte Pbuff[3];
 volatile float depth, temperature, pressure_mbar;
-boolean togglePress; //flag to toggle conversion of pressure and temperature
+boolean togglePress = 0; //flag to toggle conversion of pressure and temperature
 
 //Pressure and temp calibration coefficients
 uint16_t PSENS; //pressure sensitivity
@@ -132,36 +132,44 @@ volatile unsigned int irq_ovf_count = 0; // keep track of timer
 volatile byte second = 0;
 volatile byte minute = 00;
 volatile byte hour = 17;
-volatile byte day = 17;
-volatile byte month = 11;
-volatile byte year = 15;
+volatile byte day = 1;
+volatile byte month = 1;
+volatile byte year = 17;
 
 void setup() {
   SerialUSB.begin(57600);
   delay(10000);
   Wire.begin();
-  Wire.setClock(400);  // set I2C clock to k kHz
+  Wire.setClock(400);  // set I2C clock to 400 kHz
   SerialUSB.println("iTag");
-
-  // see if the card is present and can be initialized:
-  if (!SD.begin(chipSelect)) {
-    SerialUSB.println("Card failed, or not present");
-    // don't do anything more:
-    return;
-  }
-  if(printDiags) SerialUSB.println("Card initialized"); 
   sensorInit();
   if(printDiags) SerialUSB.println("Sensors initialized");
   setupDataStructures();
   if(printDiags) SerialUSB.println("Data structures initialized");
-  FileInit();
-  if(printDiags) SerialUSB.println("File initialized");
+
   resetGyroFIFO(); // reset Gyro FIFO
+  // see if the card is present and can be initialized:
+  if (!SD.begin(chipSelect)) {
+    SerialUSB.println("Card failed, or not present");
+    // don't do anything more:
+    while(1){
+      for (int i=0; i<3; i++){
+        digitalWrite(ledGreen, LOW);
+        delay(100);
+        digitalWrite(ledGreen, HIGH);
+        delay(100);
+      }
+      delay(1000);
+    }
+  }
+  FileInit();
+  if(printDiags) SerialUSB.println("Card initialized"); 
   if(printDiags) SerialUSB.println("Starting main loop");
   //startTimer(); // start timer
   //rtc.enableAlarm(rtc.MATCH_SS); // alarm once per second
   //rtc.attachInterrupt(alarmMatch);
   //alarmMatch();
+  if (pressure_sensor==2) updateTemp();  // get first reading ready
 }
 
 byte newSecond;
@@ -169,7 +177,7 @@ byte oldSecond;
 void loop() {
    // IMU
     if (pollImu(0)){
-      bufCount++;
+      
       int startTime = millis();
       if(dataFile.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(dataFile.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
@@ -185,6 +193,7 @@ void loop() {
     if (newSecond != oldSecond) {
       sampleSensors();
       oldSecond = newSecond;
+      bufCount++;
     }
     
     // write Pressure & Temperature to file
@@ -223,14 +232,14 @@ void loop() {
     if(time2writeO2==1){
       if(LEDSON | introPeriod) digitalWrite(ledGreen,HIGH);
       if(dataFile.write((uint8_t *)&sidRec[0],sizeof(SID_REC))==-1) resetFunc();
-      if(dataFile.write((uint8_t *)&O2buffer[0], halfbufO2)==-1) resetFunc(); 
+      if(dataFile.write((uint8_t *)&O2buffer[0], halfbufO2 * 4)==-1) resetFunc(); 
       time2writeO2 = 0;
       if(LEDSON | introPeriod) digitalWrite(ledGreen,LOW);
     }
     if(time2writeO2==2){
       if(LEDSON | introPeriod) digitalWrite(ledGreen,HIGH);
       if(dataFile.write((uint8_t *)&sidRec[0],sizeof(SID_REC))==-1) resetFunc();
-      if(dataFile.write((uint8_t *)&O2buffer[halfbufO2], halfbufO2)==-1) resetFunc();     
+      if(dataFile.write((uint8_t *)&O2buffer[halfbufO2], halfbufO2 *4)==-1) resetFunc();     
       time2writeO2 = 0;
       if(LEDSON | introPeriod) digitalWrite(ledGreen,LOW);
     }
@@ -507,15 +516,15 @@ void setupDataStructures(void){
   // setup sidSpec and sidSpec buffers...hard coded for now
   
   // oxygen
-  strncpy(sensor[0].chipName, "SGTL5000", STR_MAX);
-  sensor[0].nChan = 1;
+  strncpy(sensor[0].chipName, "PRESENS", STR_MAX);
+  sensor[0].nChan = 3;
   strncpy(sensor[0].name[0], "O2phase", STR_MAX);
   strncpy(sensor[0].name[1], "O2amplitude", STR_MAX);
   strncpy(sensor[0].name[2], "O2temperature", STR_MAX);
   strncpy(sensor[0].units[0], "deg", STR_MAX);
   strncpy(sensor[0].units[1], "V", STR_MAX);
   strncpy(sensor[0].units[2], "C", STR_MAX);
-  sensor[0].cal[0] = -1; 
+  sensor[0].cal[0] = 1; 
   sensor[0].cal[1] = 1;
   sensor[0].cal[2] = 1;
 
@@ -688,7 +697,7 @@ void FileInit()
   // write SID_SPEC depending on sensors chosen
   addSid(0, "O2", RAW_SID, halfbufO2, sensor[0], DFORM_FLOAT32, sensor_srate);   
   addSid(1, "PT", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);    
-  addSid(2, "light", RAW_SID, halfbufRGB / 2, sensor[2], DFORM_SHORT, sensor_srate);
+  addSid(2, "LIGHT", RAW_SID, halfbufRGB / 2, sensor[2], DFORM_SHORT, sensor_srate);
   addSid(3, "IMU", RAW_SID, BUFFERSIZE / 2, sensor[3], DFORM_SHORT, imu_srate);
   addSid(4, "END", 0, 0, sensor[4], 0, 0);
   if(printDiags){

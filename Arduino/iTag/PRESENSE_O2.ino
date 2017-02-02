@@ -58,7 +58,7 @@ int o2Status(){
 }
 
 float o2Temperature(){
-    o2Temp = read16(TEMPERATURE);
+    o2Temp = readTemp16(TEMPERATURE);
     O2temperature = (float) o2Temp / 10.0;
     return O2temperature;
 }
@@ -127,4 +127,25 @@ float read32(uint8_t reg)
   return u.data;
 }
 
+float readTemp16(uint8_t reg)
+{
+  float data = 0x0000;
+  union u_tag {
+    byte b[2];
+    short data;
+  } u;
+  Wire.beginTransmission(addr);
+  Wire.write(reg);
+  Wire.endTransmission();
+  
+  Wire.beginTransmission(addr);
+  Wire.requestFrom(addr, (uint8_t)2); // request 2 bytes of data
+  int i = 0;
+  while(Wire.available()){
+    u.b[i] = Wire.read();
+    i++;
+  }
+  Wire.endTransmission();
+  return u.data;
+}
 

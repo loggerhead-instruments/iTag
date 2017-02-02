@@ -12,9 +12,9 @@ int kellerInit(){
    Wire.beginTransmission(kellerAddress);
    Wire.write((byte) 0);  
    Wire.endTransmission();
-   delay(2);
+   delay(10);
    Wire.requestFrom(kellerAddress, 2); 
-   delay(2);
+   delay(10);
    while(Wire.available())  
    { 
     temp[i] = Wire.read();  // receive one byte
