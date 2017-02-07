@@ -11,15 +11,11 @@
 
 // To Do:
 // - Data download over USB
-//    - Show files
-//    - Download all
-//    - Delete all files
-//    - Set time
-//    - Poll sensors
-//    - get ID of chip
+// - re-start when plug-in USB
 // - Setup timer interrupt with sleep to read IMU
 // - Optimize power draw
 // - Define reset function
+// - Burn wire; specify datetime or HHMM
 // - skip menu if reset and not connected to USB
 
 int printDiags = 1;
@@ -120,8 +116,9 @@ volatile byte bufferposO2=0;
 byte halfbufO2 = O2BUFFERSIZE/2;
 boolean firstwrittenO2;
 
-File dataFile;
+float depthThreshold = 2.0; // if < depthThreshold turn VHF on
 
+File dataFile;
 
 /* Create an rtc object */
 RTCZero rtc;
@@ -137,31 +134,26 @@ volatile byte month = 1;
 volatile byte year = 17;
 
 void setup() {
-  SerialUSB.begin(57600);
+  SerialUSB.begin(115200);
   delay(10000);
   Wire.begin();
   Wire.setClock(400);  // set I2C clock to 400 kHz
+  rtc.begin();
+
   SerialUSB.println("iTag");
+  // see if the card is present and can be initialized:
+  if (!SD.begin(chipSelect)) {
+    SerialUSB.println("Card failed");
+  }
+  setupMenu();
+  
   sensorInit();
   if(printDiags) SerialUSB.println("Sensors initialized");
   setupDataStructures();
   if(printDiags) SerialUSB.println("Data structures initialized");
 
   resetGyroFIFO(); // reset Gyro FIFO
-  // see if the card is present and can be initialized:
-  if (!SD.begin(chipSelect)) {
-    SerialUSB.println("Card failed, or not present");
-    // don't do anything more:
-    while(1){
-      for (int i=0; i<3; i++){
-        digitalWrite(ledGreen, LOW);
-        delay(100);
-        digitalWrite(ledGreen, HIGH);
-        delay(100);
-      }
-      delay(1000);
-    }
-  }
+
   FileInit();
   if(printDiags) SerialUSB.println("Card initialized"); 
   if(printDiags) SerialUSB.println("Starting main loop");
@@ -192,6 +184,12 @@ void loop() {
     newSecond = rtc.getSeconds();
     if (newSecond != oldSecond) {
       sampleSensors();
+      if(depth < depthThreshold) {
+        vhfOn();
+      }
+      else{
+        vhfOff();
+      }
       oldSecond = newSecond;
       bufCount++;
     }
@@ -270,20 +268,18 @@ void sensorInit(){
   digitalWrite(ledGreen, HIGH);
   //REG_PORT_OUTSET0 = PORT_PA27;
   digitalWrite(BURN, HIGH);
-  digitalWrite(VHF, HIGH);
-  digitalWrite(O2POW, HIGH);
- // SerialUSB.println("Green LED on");
-
-  
-  digitalWrite(BURN, LOW);
-  digitalWrite(VHF, LOW);
-
+  vhfOn();
+  digitalWrite(O2POW, LOW);
+  delay(100);
+  digitalWrite(O2POW, HIGH); //O2 sensor needs to be on or ties up I2C bus
 // battery voltage measurement
   SerialUSB.print("Battery: ");
   SerialUSB.println(analogRead(vSense));
   
   delay(100); // this delay is needed to give sensors time
-
+  
+  digitalWrite(BURN, LOW);
+  
   // RGB
   islInit(); 
   SerialUSB.println("RGB");
@@ -343,11 +339,8 @@ void sensorInit(){
   //while(irq_ovf_count < 20);
   //stopTimer();
 
-  rtc.begin();
-  rtc.setTime(hour, minute, second);
-  rtc.setDate(day, month, year);
-  
   digitalWrite(ledGreen, LOW);
+  vhfOff();
   //REG_PORT_OUTCLR0 = PORT_PA27;
 }
 
@@ -654,7 +647,7 @@ void FileInit()
    char filename[20];
    getTime();
    // open file 
-   sprintf(filename,"%02d%02d%02d%02d.amx", day, hour, minute, second);  //filename is DDHHMM
+   sprintf(filename,"%02d%02d%02d%02d.AMX", day, hour, minute, second);  //filename is DDHHMM
 
    // log file
    float voltage = readVoltage();
@@ -780,4 +773,24 @@ void alarmMatch(){
   rtc.setAlarmSeconds(alarmSecond);
   sampleSensors();
 }
+
+void vhfOn(){
+  digitalWrite(VHF, HIGH);
+}
+
+void vhfOff(){
+  digitalWrite(VHF, LOW);
+}
+
+void BurnBabyBurn(){
+  digitalWrite(BURN, HIGH);
+  vhfOn();
+  
+  // want to stay here in lowest power state available
+  // possibly turn burn wire off after x minutes
+  while(1){
+    
+  }
+}
+
 
