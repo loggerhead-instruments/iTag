@@ -10,13 +10,14 @@
 #include "amx32.h"
 
 // To Do:
-// - Data download over USB
 // - re-start when plug-in USB
+// - Burn wire; specify datetime or HHMM
 // - Setup timer interrupt with sleep to read IMU
 // - Optimize power draw
 // - Define reset function
-// - Burn wire; specify datetime or HHMM
 // - skip menu if reset and not connected to USB
+// autostart after timeout
+// burnFlag and burnDelayMinutes to flash or card
 
 int printDiags = 1;
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
@@ -127,11 +128,29 @@ volatile unsigned int irq_ovf_count = 0; // keep track of timer
 
 /* Change these values to set the current initial time and date */
 volatile byte second = 0;
-volatile byte minute = 00;
+volatile byte minute = 0;
 volatile byte hour = 17;
 volatile byte day = 1;
 volatile byte month = 1;
 volatile byte year = 17;
+
+volatile byte burnSecond = 0;
+volatile byte burnMinute = 10;
+volatile byte burnHour = 17;
+volatile byte burnDay = 1;
+volatile byte burnMonth = 1;
+volatile byte burnYear = 17;
+
+unsigned int burnDurMin = 30; // how long burn wire is activated
+unsigned int burnDelayMinutes = 0;
+int burnFlag = 0; //0=no Burn; 1=burn burnDelayMinutes after start; 2=burn at specific time
+int burnTriggered = 0; //set to 1 once burn happened so can use that to turn on VHF and go to sleep
+long burnTime;
+#define SECONDS_IN_MINUTE 60
+#define SECONDS_IN_HOUR 3600
+#define SECONDS_IN_DAY 86400
+#define SECONDS_IN_YEAR 31536000
+#define SECONDS_IN_LEAP 31622400
 
 void setup() {
   SerialUSB.begin(115200);
@@ -184,11 +203,23 @@ void loop() {
     newSecond = rtc.getSeconds();
     if (newSecond != oldSecond) {
       sampleSensors();
-      if(depth < depthThreshold) {
+      if((depth < depthThreshold) | burnTriggered) {
         vhfOn();
       }
       else{
         vhfOff();
+      }
+      
+      if(burnFlag){
+        long curTime = RTCToUNIXTime(year, month, day, hour, minute, second);
+        long diffMinutes = (curTime - burnTime) / 60;
+        if((curTime > burnTime) & (diffMinutes < burnDurMin)) {
+          digitalWrite(BURN, HIGH);
+          burnTriggered = 1;
+          }
+        else{
+          digitalWrite(BURN, LOW);
+        }
       }
       oldSecond = newSecond;
       bufCount++;
@@ -793,4 +824,33 @@ void BurnBabyBurn(){
   }
 }
 
+// Calculates Accurate UNIX Time Based on RTC Timestamp
+unsigned long RTCToUNIXTime(int uYear, int uMonth, int uDay, int uHour, int uMinute, int uSecond){
+  int i;
+  unsigned const char DaysInMonth[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+  unsigned long Ticks = 0;
 
+  long yearsSince = uYear+30; // Same as tm->year + 2000 - 1970
+  long numLeaps = yearsSince >> 2; // yearsSince / 4 truncated
+  
+  if((!(uYear%4)) && (uMonth>2)) Ticks+=SECONDS_IN_DAY;  //dm 8/9/2012  If current year is leap, add one day
+
+  // Calculate Year Ticks
+  Ticks += (yearsSince-numLeaps)*SECONDS_IN_YEAR;
+  Ticks += numLeaps * SECONDS_IN_LEAP;
+
+  // Calculate Month Ticks
+  for(i=0; i < uMonth-1; i++){
+       Ticks += DaysInMonth[i] * SECONDS_IN_DAY;
+  }
+
+  // Calculate Day Ticks
+  Ticks += uDay * SECONDS_IN_DAY;
+  
+  // Calculate Time Ticks CHANGES ARE HERE
+  Ticks += (ULONG)uHour * SECONDS_IN_HOUR;
+  Ticks += (ULONG)uMinute * SECONDS_IN_MINUTE;
+  Ticks += uSecond;
+
+  return Ticks;
+}

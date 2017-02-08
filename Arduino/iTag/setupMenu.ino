@@ -30,8 +30,26 @@ void setupMenu(){
           break;
         case 54: // start
           SerialUSB.println("Starting");
+          getTime();
+          if(burnFlag==1){
+            long curTime = RTCToUNIXTime(year, month, day, hour, minute, second);
+            if(curTime > burnTime){
+              SerialUSB.print("Burn time has already passed");
+            }
+          }
+          if(burnFlag==2){
+            long curTime = RTCToUNIXTime(year, month, day, hour, minute, second);
+            burnTime = curTime + (burnDelayMinutes * 60);
+          }
           clearSerial();
           return;
+        case 55: // set burn minutes
+          setBurnMinutes();
+          break;
+        case 56: // set burn minutes
+          setBurnTime();
+          break;
+          
       }
       inByte = 0;
    //   displayMenu();
@@ -51,6 +69,8 @@ void displayMenu(){
   SerialUSB.println("(4) Sensor test");
   SerialUSB.println("(5) Delete all files");
   SerialUSB.println("(6) Start");
+  SerialUSB.println("(7) Set Burn Minutes");
+  SerialUSB.println("(8) Set Burn Time");
 }
 
 void printChipId() {
@@ -223,5 +243,72 @@ void sendFile(File *file){
     if(bytesAvail < PACKET) bytes2write = bytesAvail;
     SerialUSB.write(data, bytes2write);
   }
+}
+
+void setBurnMinutes(){
+  int inByte = 100;
+  char burnMin[15];
+  memset(burnMin, 0, 15);
+  int index = 0;
+  long startTime = millis();
+  while(inByte > 30){  //wait for carriage return
+    if(SerialUSB.available()){
+      inByte =  SerialUSB.read();
+      burnMin[index] = inByte;
+      index++;
+      if(inByte == 'X') break;
+    }
+    if(millis() - startTime > 5000) break;
+  }
+  clearSerial();
+
+  burnDelayMinutes = atoi(burnMin);
+  if(burnDelayMinutes < 0) burnDelayMinutes = 0;
+
+  if(burnDelayMinutes == 0) {
+    burnFlag = 0;
+    SerialUSB.println("Burn wire disabled");
+  }
+  else{
+    SerialUSB.print("Burn delay: "); SerialUSB.println(burnDelayMinutes);
+    long curTime = RTCToUNIXTime(year, month, day, hour, minute, second);
+    burnTime = curTime + (burnDelayMinutes * 60);
+    SerialUSB.print("Now:"); SerialUSB.println(curTime);
+    SerialUSB.print("Burn:"); SerialUSB.println(burnTime);
+    burnFlag = 1;
+  }
+
+}
+
+void setBurnTime(){
+  char inputStr[2];
+  char datetime[12];
+  int i = 0;
+  long startTime = millis();
+   while(1){
+    if(SerialUSB.available()){
+      char inChar = SerialUSB.read();
+      datetime[i] = inChar;
+      i++;
+      if(i>=12) break;
+      if(millis()-startTime > 10000) {
+        SerialUSB.println("Set burn time fail");
+        SerialUSB.flush(); // clear buffer
+        return; // timeout
+      }
+    }
+  }
+  inputStr[0] = datetime[0]; inputStr[1] = datetime[1]; burnYear = atoi(inputStr);
+  inputStr[0] = datetime[2]; inputStr[1] = datetime[3]; burnMonth = atoi(inputStr);
+  inputStr[0] = datetime[4]; inputStr[1] = datetime[5]; burnDay = atoi(inputStr);
+  inputStr[0] = datetime[6]; inputStr[1] = datetime[7]; burnHour = atoi(inputStr);
+  inputStr[0] = datetime[8]; inputStr[1] = datetime[9]; burnMinute = atoi(inputStr);
+  inputStr[0] = datetime[10]; inputStr[1] = datetime[11]; burnSecond = atoi(inputStr);
+
+  long curTime = RTCToUNIXTime(year, month, day, hour, minute, second);
+  burnTime = RTCToUNIXTime(burnYear, burnMonth, burnDay, burnHour, burnMinute, burnSecond);
+  SerialUSB.print("Now:"); SerialUSB.println(curTime);
+  SerialUSB.print("Burn:"); SerialUSB.println(burnTime);
+  burnFlag = 2;
 }
 
