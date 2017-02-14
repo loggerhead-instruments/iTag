@@ -3,7 +3,10 @@
 
 void setupMenu(){
 //  displayMenu();
+
   while(1){
+    pinMode(ledGreen, OUTPUT);
+    digitalWrite(ledGreen,LED_ON);
     if(SerialUSB.available()){
       int inByte = SerialUSB.read();
    //   SerialUSB.print("Selection:"); SerialUSB.println(inByte);
@@ -31,13 +34,17 @@ void setupMenu(){
         case 54: // start
           SerialUSB.println("Starting");
           getTime();
-          if(burnFlag==1){
+          if(burnFlag==2){
             long curTime = RTCToUNIXTime(year, month, day, hour, minute, second);
             if(curTime > burnTime){
-              SerialUSB.print("Burn time has already passed");
+              for(int i = 0; i<10; i++){
+              SerialUSB.println("Burn time has already passed");
+              delay(1000);
+              SerialUSB.println();
+              }
             }
           }
-          if(burnFlag==2){
+          if(burnFlag==1){
             long curTime = RTCToUNIXTime(year, month, day, hour, minute, second);
             burnTime = curTime + (burnDelayMinutes * 60);
           }

@@ -11,15 +11,15 @@
 
 // To Do:
 // - re-start when plug-in USB
-// - Burn wire; specify datetime or HHMM
 // - Setup timer interrupt with sleep to read IMU
 // - Optimize power draw
 // - Define reset function
 // - skip menu if reset and not connected to USB
+// stop recording if power low
 // autostart after timeout
 // burnFlag and burnDelayMinutes to flash or card
 
-int printDiags = 1;
+int printDiags = 0;
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
 #define MS5803_01bar 32768.0
 #define MS5803_30bar 819.2
@@ -28,11 +28,13 @@ float MS5803_constant = MS5803_30bar; //set to 1 bar sensor
 float sensor_srate = 1.0;
 float imu_srate = 100.0;
 
-int nbufsPerFile = 30; // number of seconds per file
+int nbufsPerFile = 60; // number of seconds per file
 int bufCount = 0;
 int file_count = 0;
 int introPeriod = 1;
 #define LEDSON 0  //change to 1 if want LEDs on all the time
+#define LED_ON LOW
+#define LED_OFF HIGH
 
 // Header for amx files
 DF_HEAD dfh;
@@ -188,7 +190,7 @@ byte oldSecond;
 void loop() {
    // IMU
     if (pollImu(0)){
-      
+      if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_ON);
       int startTime = millis();
       if(dataFile.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(dataFile.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
@@ -197,6 +199,7 @@ void loop() {
          SerialUSB.print(millis() - startTime);
          SerialUSB.println(" ms");
        }
+       if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_OFF);
     }
 
     // sample other sensors once per second
@@ -227,54 +230,47 @@ void loop() {
     
     // write Pressure & Temperature to file
     if(time2writePT==1){
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,HIGH);
+      if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_ON);
       if(dataFile.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
       if(dataFile.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(); 
       time2writePT = 0;
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,LOW);
+      if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_OFF);
     }
     if(time2writePT==2){
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,HIGH);
+      if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_ON);
       if(dataFile.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
       if(dataFile.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();     
       time2writePT = 0;
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,LOW);
+      if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_OFF);
     }   
   
     // write RGB values to file
     if(time2writeRGB==1){
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,HIGH);
       if(dataFile.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
       if(dataFile.write((uint8_t *)&RGBbuffer[0], halfbufRGB)==-1) resetFunc(); 
       time2writeRGB = 0;
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,LOW);
     }
     if(time2writeRGB==2){
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,HIGH);
       if(dataFile.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
       if(dataFile.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
       time2writeRGB = 0;
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,LOW);
     } 
 
     // write O2 values to file
     if(time2writeO2==1){
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,HIGH);
       if(dataFile.write((uint8_t *)&sidRec[0],sizeof(SID_REC))==-1) resetFunc();
       if(dataFile.write((uint8_t *)&O2buffer[0], halfbufO2 * 4)==-1) resetFunc(); 
       time2writeO2 = 0;
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,LOW);
     }
     if(time2writeO2==2){
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,HIGH);
       if(dataFile.write((uint8_t *)&sidRec[0],sizeof(SID_REC))==-1) resetFunc();
       if(dataFile.write((uint8_t *)&O2buffer[halfbufO2], halfbufO2 *4)==-1) resetFunc();     
       time2writeO2 = 0;
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,LOW);
     }
 
     if(bufCount >= nbufsPerFile){       // time to stop?
       introPeriod = 0;  //LEDS on for first file
+      digitalWrite(ledGreen,LED_OFF);
       dataFile.close();
       FileInit();  // make a new file
       bufCount = 0;
@@ -296,7 +292,7 @@ void sensorInit(){
 
   // Digital IO
  // SerialUSB.println("Turning green LED on");
-  digitalWrite(ledGreen, HIGH);
+  digitalWrite(ledGreen, LED_ON);
   //REG_PORT_OUTSET0 = PORT_PA27;
   digitalWrite(BURN, HIGH);
   vhfOn();
@@ -353,7 +349,7 @@ void sensorInit(){
   // Presens O2
   SerialUSB.print("O2 status:");
   SerialUSB.println(o2Status());
-  for (int n=0; n<5; n++){
+  for (int n=0; n<2; n++){
     SerialUSB.print("Temperature:"); SerialUSB.println(o2Temperature());
     SerialUSB.print("Phase:"); SerialUSB.println(o2Phase());
     SerialUSB.print("Amplitude:"); SerialUSB.println(o2Amplitude());
@@ -370,8 +366,15 @@ void sensorInit(){
   //while(irq_ovf_count < 20);
   //stopTimer();
 
-  digitalWrite(ledGreen, LOW);
+  digitalWrite(ledGreen, LED_OFF);
   vhfOff();
+
+  SerialUSB.print("Burn flag:"); SerialUSB.println(burnFlag);
+  SerialUSB.print("Burn UNIX time UTC:"); SerialUSB.println(burnTime);
+  long curTime = RTCToUNIXTime(year, month, day, hour, minute, second);
+  SerialUSB.print("Current UNIX time UTC:"); 
+  SerialUSB.println(curTime);
+  printTime();
   //REG_PORT_OUTCLR0 = PORT_PA27;
 }
 
