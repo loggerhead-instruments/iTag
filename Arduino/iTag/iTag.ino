@@ -156,6 +156,8 @@ long burnTime;
 
 void setup() {
   SerialUSB.begin(115200);
+  pinMode(ledGreen, OUTPUT);
+  digitalWrite(ledGreen,LED_ON);
   delay(10000);
   Wire.begin();
   Wire.setClock(400);  // set I2C clock to 400 kHz
