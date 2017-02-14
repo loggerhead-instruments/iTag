@@ -735,7 +735,6 @@ void FileInit()
     SerialUSB.print("Buffers: ");
     SerialUSB.println(nbufsPerFile);
   }
-  digitalWrite(ledGreen, LOW);
 }
 
 void sampleSensors(void){  //interrupt at update_rate
