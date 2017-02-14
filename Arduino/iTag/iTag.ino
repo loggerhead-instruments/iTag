@@ -361,7 +361,7 @@ void sensorInit(){
   mpuInit(1);
   //startTimer();
   delay(1000);
-  pollImu(printDiags);
+  pollImu(1);
 
   //while(irq_ovf_count < 20);
   //stopTimer();
@@ -454,17 +454,17 @@ int pollImu(int imuDiags){
       accel_y = (int16_t) ((int16_t)imuBuffer[2] << 8 | imuBuffer[3]);   
       accel_z = (int16_t) ((int16_t)imuBuffer[4] << 8 | imuBuffer[5]);    
       
-      gyro_temp = (int16_t) (((int16_t)imuBuffer[6]) << 8 | imuBuffer[7]);   
+    //  gyro_temp = (int16_t) (((int16_t)imuBuffer[6]) << 8 | imuBuffer[7]);   
      
-      gyro_x = (int16_t)  (((int16_t)imuBuffer[8] << 8) | imuBuffer[9]);   
-      gyro_y = (int16_t)  (((int16_t)imuBuffer[10] << 8) | imuBuffer[11]); 
-      gyro_z = (int16_t)  (((int16_t)imuBuffer[12] << 8) | imuBuffer[13]);   
+      gyro_x = (int16_t)  (((int16_t)imuBuffer[6] << 8) | imuBuffer[9]);   
+      gyro_y = (int16_t)  (((int16_t)imuBuffer[8] << 8) | imuBuffer[11]); 
+      gyro_z = (int16_t)  (((int16_t)imuBuffer[10] << 8) | imuBuffer[13]);   
       
-      magnetom_x = (int16_t)  (((int16_t)imuBuffer[14] << 8) | imuBuffer[15]);   
-      magnetom_y = (int16_t)  (((int16_t)imuBuffer[16] << 8) | imuBuffer[17]);   
-      magnetom_z = (int16_t)  (((int16_t)imuBuffer[18] << 8) | imuBuffer[19]);  
+      magnetom_x = (int16_t)  (((int16_t)imuBuffer[12] << 8) | imuBuffer[15]);   
+      magnetom_y = (int16_t)  (((int16_t)imuBuffer[14] << 8) | imuBuffer[17]);   
+      magnetom_z = (int16_t)  (((int16_t)imuBuffer[16] << 8) | imuBuffer[19]);  
   
-      SerialUSB.print("a/g/m/t:\t");
+      SerialUSB.print("a/g/m:\t");
       SerialUSB.print( accel_x); SerialUSB.print("\t");
       SerialUSB.print( accel_y); SerialUSB.print("\t");
       SerialUSB.print( accel_z); SerialUSB.print("\t");
@@ -473,8 +473,8 @@ int pollImu(int imuDiags){
       SerialUSB.print(gyro_z); SerialUSB.print("\t");
       SerialUSB.print(magnetom_x); SerialUSB.print("\t");
       SerialUSB.print(magnetom_y); SerialUSB.print("\t");
-      SerialUSB.print(magnetom_z); SerialUSB.print("\t");
-      SerialUSB.println((float) gyro_temp/337.87+21);
+      SerialUSB.print(magnetom_z); SerialUSB.println("\t");
+      //SerialUSB.println((float) gyro_temp/337.87+21);
     }
   }
   return FIFOpts>BUFFERSIZE;
