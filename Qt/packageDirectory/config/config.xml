@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Installer>
+    <Name>iTag</Name>
+    <Version>1.0.0</Version>
+    <Title>iTag Installer</Title>
+    <Publisher>Loggerhead Instruments</Publisher>
+    <StartMenuDir>Super App</StartMenuDir>
+    <TargetDir>@HomeDir@/iTag</TargetDir>
+</Installer>
