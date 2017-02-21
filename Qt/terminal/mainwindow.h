@@ -70,6 +70,7 @@ QT_END_NAMESPACE
 
 class Console;
 class SettingsDialog;
+class burnvhfDialog;
 
 class MainWindow : public QMainWindow
 {
@@ -103,6 +104,10 @@ private slots:
 
     void on_actionDelete_All_triggered();
 
+    void on_actionBurn_triggered();
+
+    void on_actionBurnDT_triggered();
+
 private:
     void initActionsConnections();
 
@@ -114,6 +119,7 @@ private:
     Console *console;
     SettingsDialog *settings;
     QSerialPort *serial;
+    burnvhfDialog *burnvhf;
 };
 
 #endif // MAINWINDOW_H

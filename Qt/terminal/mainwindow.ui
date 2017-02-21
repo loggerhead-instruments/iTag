@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>563</width>
+    <width>638</width>
     <height>300</height>
    </rect>
   </property>
@@ -21,7 +21,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>563</width>
+     <width>638</width>
      <height>22</height>
     </rect>
    </property>
@@ -69,6 +69,8 @@
    <addaction name="actionSet_Time"/>
    <addaction name="actionDelete_All"/>
    <addaction name="actionDeploy"/>
+   <addaction name="actionBurn"/>
+   <addaction name="actionBurnDT"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionAbout">
@@ -196,6 +198,22 @@
   <action name="actionDeploy">
    <property name="text">
     <string>Deploy</string>
+   </property>
+  </action>
+  <action name="actionBurn">
+   <property name="text">
+    <string>Burn</string>
+   </property>
+   <property name="toolTip">
+    <string>Setup Burn and VHF</string>
+   </property>
+  </action>
+  <action name="actionBurnDT">
+   <property name="text">
+    <string>BurnDT</string>
+   </property>
+   <property name="toolTip">
+    <string>Burn wire datetime</string>
    </property>
   </action>
  </widget>

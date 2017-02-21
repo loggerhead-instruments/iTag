@@ -7,16 +7,19 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     settingsdialog.cpp \
-    console.cpp
+    console.cpp \
+    burnvhfdialog.cpp
 
 HEADERS += \
     mainwindow.h \
     settingsdialog.h \
-    console.h
+    console.h \
+    burnvhfdialog.h
 
 FORMS += \
     mainwindow.ui \
-    settingsdialog.ui
+    settingsdialog.ui \
+    burnvhfdialog.ui
 
 RESOURCES += \
     terminal.qrc

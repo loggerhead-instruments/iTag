@@ -53,6 +53,7 @@
 #include "ui_mainwindow.h"
 #include "console.h"
 #include "settingsdialog.h"
+#include "burnvhfdialog.h"
 
 #include <QMessageBox>
 #include <QLabel>
@@ -62,6 +63,7 @@
 #include <QDateTime>
 #include <QTextStream>
 #include <QDir>
+#include <QInputDialog>
 
 int saveData = 0;
 QString currentFile;
@@ -84,6 +86,7 @@ MainWindow::MainWindow(QWidget *parent) :
     serial = new QSerialPort(this);
 //! [1]
     settings = new SettingsDialog;
+    burnvhf = new burnvhfDialog;
 
     ui->actionConnect->setEnabled(true);
     ui->actionDisconnect->setEnabled(false);
@@ -341,4 +344,39 @@ void MainWindow::on_actionDelete_All_triggered()
     menuChoice.append('5');
     serial->write(menuChoice);
     serial->flush();
+}
+
+// set burn minutes
+void MainWindow::on_actionBurn_triggered()
+{
+    //burnvhf->show();
+    bool ok;
+    QString text = QInputDialog::getText(this, tr("Burn Wire Setup"),
+                                             tr("Minutes until trigger burn:"), QLineEdit::Normal,
+                                             "", &ok);
+    if (ok && !text.isEmpty()){
+        saveData = 0;
+        QByteArray menuChoice;
+        menuChoice.append('7');
+        menuChoice.append(text.toLocal8Bit());
+        menuChoice.append('X'); //X to mark end of data
+        serial->write(menuChoice);
+        serial->flush();
+    }
+}
+
+void MainWindow::on_actionBurnDT_triggered()
+{
+    bool ok;
+    QString text = QInputDialog::getText(this, tr("Burn Wire Setup"),
+                                             tr("Burn Datetime UTC (YYMMDDHHMMSS)"), QLineEdit::Normal,
+                                             "", &ok);
+    if (ok && !text.isEmpty()){
+        saveData = 0;
+        QByteArray menuChoice;
+        menuChoice.append('8');
+        menuChoice.append(text.toLocal8Bit());
+        serial->write(menuChoice);
+        serial->flush();
+    }
 }
