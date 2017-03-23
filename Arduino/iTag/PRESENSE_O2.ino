@@ -119,10 +119,17 @@ float read32(uint8_t reg)
   Wire.beginTransmission(addr);
   Wire.requestFrom(addr, (uint8_t)4); // request 4 bytes of data
   int i = 0;
+  char buf[9];
+  
   while(Wire.available()){
     u.b[i] = Wire.read();
+    sprintf(buf, "%02X", u.b[i]);
+    SerialUSB.print(buf);
     i++;
   }
+  SerialUSB.print(" ");
+
+  //SerialUSB.println();
   Wire.endTransmission();
   return u.data;
 }

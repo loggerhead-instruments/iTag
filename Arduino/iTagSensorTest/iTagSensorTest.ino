@@ -116,8 +116,13 @@ void setup() {
 void loop() {
     sensorInit();
     SerialUSB.println("Test Complete");
-    SerialUSB.println("Restarting in 5s");
-    delay(5000);
+    SerialUSB.println("Restarting in 1s");
+    mpuInit(1);
+    for (int i = 0 ; i<10000; i++){
+      pollImu();
+      delay(100);
+    }
+    delay(1000);
 }
 
 void sensorInit(){
@@ -144,12 +149,12 @@ void sensorInit(){
   digitalWrite(BURN, HIGH);
   digitalWrite(VHF, HIGH);
   digitalWrite(O2POW, HIGH);
-
+/*
   SerialUSB.println("Green LED on");
 
   // RGB
   islInit(); 
-  for(int n=0; n<10; n++){
+  for(int n=0; n<2; n++){
       islRead();
       SerialUSB.print("R:"); SerialUSB.print(islRed); SerialUSB.print("\t");
       SerialUSB.print("G:"); SerialUSB.print(islGreen); SerialUSB.print("\t");
@@ -161,6 +166,7 @@ void sensorInit(){
   //REG_PORT_OUTCLR0 = PORT_PA27;
   digitalWrite(BURN, LOW);
   digitalWrite(VHF, LOW);
+
 
   SerialUSB.println("Green LED off");
 
@@ -211,14 +217,14 @@ void sensorInit(){
   rtc.setDate(day, month, year);
   //rtc.attachInterrupt(alarmMatch);
  // rtc.enableAlarm(rtc.MATCH_SS);
-
+*/
   // IMU with sleep
-  mpuInit(1);
-  startTimer();
-  while(irq_ovf_count < 20);
-  stopTimer();
-  mpuInit(0); //gyro to sleep
-
+ // mpuInit(1);
+ // startTimer();
+ // while(irq_ovf_count < 20);
+ // stopTimer();
+ // mpuInit(0); //gyro to sleep
+/*
   dataString += String(islRed);
   dataString += ",";
   dataString += String(islGreen);
@@ -226,17 +232,17 @@ void sensorInit(){
   dataString += String(islBlue);
   dataFile.println(dataString);
   dataFile.close();
+  */
 }
 
 boolean pollImu(){
   FIFOpts=getImuFifo();
-  SerialUSB.print("IMU FIFO pts: ");
-  SerialUSB.println(FIFOpts);
+  //SerialUSB.print("IMU FIFO pts: ");
+  //SerialUSB.println(FIFOpts);
   if(FIFOpts>BUFFERSIZE)  //once have enough data for a block, download and write to disk
   {
      Read_Gyro(BUFFERSIZE);  //download block from FIFO
-  
-     
+ 
     if (printDiags){
     // print out first line of block
     // MSB byte first, then LSB, X,Y,Z
@@ -254,6 +260,34 @@ boolean pollImu(){
     magnetom_y = (int16_t)  (((int16_t)imuBuffer[16] << 8) | imuBuffer[17]);   
     magnetom_z = (int16_t)  (((int16_t)imuBuffer[18] << 8) | imuBuffer[19]);  
 
+// Calculate pitch, roll, yaw
+float radPerDeg = 0.0174532925;
+
+// roll
+float phi = atan2(accel_y, accel_z);
+float sinAngle = sin(phi);
+float cosAngle = cos(phi);
+
+// de-rotate by roll angle
+float Bfy = (magnetom_y * cosAngle) - (magnetom_z * sinAngle);
+float Bz = (magnetom_y * sinAngle) + (magnetom_z * cosAngle);
+float Gz = accel_y * sinAngle + accel_z * cosAngle;
+
+// theta = pitch angle (-90 to 90 degrees)
+float theta = atan(-accel_x / Gz);
+sinAngle = sin(theta);
+cosAngle = cos(theta);
+
+// de-rotate by pitch angle theta
+float Bfx = (magnetom_x * cosAngle) + (Bz * sinAngle);
+float Bfz = (-magnetom_x * sinAngle) + (Bz * cosAngle);
+
+// Psi = yaw = heading
+float psi = atan2(-Bfy, Bfx);
+float pitch = theta / radPerDeg;
+float roll = phi / radPerDeg;
+float yaw = 180 + (psi / radPerDeg);
+
     SerialUSB.print("a/g/m/t:\t");
     SerialUSB.print( accel_x); SerialUSB.print("\t");
     SerialUSB.print( accel_y); SerialUSB.print("\t");
@@ -265,6 +299,10 @@ boolean pollImu(){
     SerialUSB.print(magnetom_y); SerialUSB.print("\t");
     SerialUSB.print(magnetom_z); SerialUSB.print("\t");
     SerialUSB.println((float) gyro_temp/337.87+21);
+    SerialUSB.print("PRY: ");
+    SerialUSB.print(pitch); SerialUSB.print("\t");
+    SerialUSB.print(roll); SerialUSB.print("\t");
+    SerialUSB.println(yaw); 
     }
     
     return true;

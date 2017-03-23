@@ -355,6 +355,13 @@ void sensorInit(){
     SerialUSB.print("Temperature:"); SerialUSB.println(o2Temperature());
     SerialUSB.print("Phase:"); SerialUSB.println(o2Phase());
     SerialUSB.print("Amplitude:"); SerialUSB.println(o2Amplitude());
+  for (int n=0; n<100; n++){
+    SerialUSB.print("Temp : "); 
+    SerialUSB.println(o2Temperature());
+    SerialUSB.print("Phase: ");
+    SerialUSB.println(o2Phase()); 
+    SerialUSB.print("Amp  : ");
+    SerialUSB.println(o2Amplitude());
     delay(1000);
   }
 
