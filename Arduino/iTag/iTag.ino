@@ -602,7 +602,6 @@ void setupDataStructures(void){
     sensor[1].cal[1] = 1.0;
   }
 
-  
   // RGB light
   strncpy(sensor[2].chipName, "ISL29125", STR_MAX);
   sensor[2].nChan = 3;

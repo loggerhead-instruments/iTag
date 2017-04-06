@@ -46,16 +46,20 @@ int mpuInit(boolean mode)
 
     //set clock source
     ecode = I2Cwrite(GyroAddress, 0x6B, 0x01);  //everything awake; clock from X gyro reference
-  
-    // set gyro range
-    I2Cwrite(GyroAddress, 0x1B, 0x10);  // 0x10 +/- 1000 deg/s ; 0x18 +/-2000 deg/s
-    
-    // set accel range
-    I2Cwrite(GyroAddress, 0x1C, 0x18); // +/- 16 g
-    
+ 
     // configure frame sync and LPF
     //I2Cwrite(GyroAddress, 0x1A, 0x08 | 0x05);  //Frame sync to Temperature LSB; DLPF 10 Hz; causes Gyro to sample at 1 kHz
-    I2Cwrite(GyroAddress, 0x1A, 0x05);  //no frame sync; DLPF 10 Hz; causes Gyro to sample at 1 kHz
+    //I2Cwrite(GyroAddress, 0x1A, 0x05);  //no frame sync; DLPF 10 Hz; causes Gyro to sample at 1 kHz
+    I2Cwrite(GyroAddress, 0x1A, 0x03); // no frame sync; Gyro to sample at 1 kHz with DLPF 41 Hz (4.8 ms delay)
+
+    // set gyro range
+    I2Cwrite(GyroAddress, 0x1B, 0x10); // 0x10 +/- 1000 deg/s; 0x18 +/- 2000 deg/s; Fchoice_b = 00 (use DLPF)
+
+    // set accel range
+    I2Cwrite(GyroAddress, 0x1C, 0x18); // +/- 16 g
+
+    // Accelerometer Configuration 2
+    I2Cwrite(GyroAddress, 0x1D, 0x03); // low pass filter at 41 Hz (11.8 ms delay)
     
     // set sample rate divider
     I2Cwrite(GyroAddress, 0x19, 9);  //  0x31=49=>20Hz; 9=100 Hz divide 1 kHz/(1+9)=100 Hz sample rate for all sensors
