@@ -21,9 +21,19 @@
 
 int printDiags = 0;
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
-#define MS5803_01bar 32768.0
-#define MS5803_30bar 819.2
-float MS5803_constant = MS5803_30bar; //set to 1 bar sensor
+//#define MS5803_01bar
+#define MS5803_05bar
+//#define MS5803_30bar
+
+#ifdef MS5803_01bar
+  #define MS5803_constant 32768.0
+#endif
+#ifdef MS5803_05bar
+  #define MS5803_constant 32768.0
+#endif
+#ifdef MS5803_30bar
+  #define MS5803_constant 819.2
+#endif
 
 float sensor_srate = 1.0;
 float imu_srate = 100.0;
@@ -329,14 +339,23 @@ void sensorInit(){
     kellerConvert();
     delay(10);
     kellerRead();
-    SerialUSB.print("Depth: "); SerialUSB.println(depth);
-    SerialUSB.print("Temperature: "); SerialUSB.println(temperature);
+    SerialUSB.print("Depth: "); SerialUSB.print(depth);
+    SerialUSB.print("  Temp: "); SerialUSB.println(temperature);
   }
   
   // Measurement Specialties
   if(pressInit()){
     pressure_sensor = 1;
-    SerialUSB.println("MS Pressure Detected");
+    SerialUSB.print("MS5803 Pressure Detected: ");
+    #ifdef MS5803_01bar
+    SerialUSB.println("1 bar");
+    #endif
+    #ifdef MS5803_05bar
+      SerialUSB.println("5 bar");
+    #endif
+    #ifdef MS5803_30bar
+      SerialUSB.println("30 bar");
+    #endif
     updatePress();
     delay(10);
     readPress();
@@ -344,27 +363,19 @@ void sensorInit(){
     delay(10);
     readTemp();
     calcPressTemp();
-    SerialUSB.print("Depth: "); SerialUSB.println(depth);
-    SerialUSB.print("Temperature: "); SerialUSB.println(temperature);
+    SerialUSB.print("Press (mBar): "); SerialUSB.print(pressure_mbar);
+    SerialUSB.print("  Depth: "); SerialUSB.print(depth);
+    SerialUSB.print("  Temp: "); SerialUSB.println(temperature);
   }
 
   // Presens O2
   SerialUSB.print("O2 status:");
   SerialUSB.println(o2Status());
   for (int n=0; n<2; n++){
-    SerialUSB.print("Temperature:"); SerialUSB.println(o2Temperature());
-    SerialUSB.print("Phase:"); SerialUSB.println(o2Phase());
-    SerialUSB.print("Amplitude:"); SerialUSB.println(o2Amplitude());
-  for (int n=0; n<100; n++){
-    SerialUSB.print("Temp : "); 
-    SerialUSB.println(o2Temperature());
-    SerialUSB.print("Phase: ");
-    SerialUSB.println(o2Phase()); 
-    SerialUSB.print("Amp  : ");
-    SerialUSB.println(o2Amplitude());
-    delay(1000);
+    SerialUSB.print("O2 Temp:"); SerialUSB.print(o2Temperature());
+    SerialUSB.print("  Phase:"); SerialUSB.print(o2Phase());
+    SerialUSB.print("  Amplitude:"); SerialUSB.println(o2Amplitude());
   }
-
 
   // IMU
   mpuInit(1);

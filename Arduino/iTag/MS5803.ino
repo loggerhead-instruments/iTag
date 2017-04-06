@@ -163,9 +163,17 @@ void calcPressTemp(){
   
   float dT = (float) D2 - ((float) TREF * 256.0);
   float T16 = 2000.0 + (dT * (float) TEMPSENS / (float) 8388608.0);
+
+  float OFF, SENS;
+  #ifdef MS5803_05bar
+    OFF = ((float) POFF * 262144.0)  + (((float) TCOFF * dT) / 32.0);
+    SENS = ((float) PSENS * 131072.0) + ((dT * (float) TCSENS) / 128.0);
+  #else
+    OFF = ((float) POFF * 65536.0)  + (((float) TCOFF * dT) / 128.0);
+    SENS = ((float) PSENS * 32768.0) + ((dT * (float) TCSENS) / 256.0);
+  #endif
+    
   
-  float OFF = ((float) POFF * 65536.0)  + (((float) TCOFF * dT) / 128.0);
-  float SENS = ((float) PSENS * 32768.0) + ((dT * (float) TCSENS) / 256.0);
 
   pressure_mbar = ((float) D1 * SENS / 2097152.0 - OFF) / MS5803_constant / 100.0;  // mbar
   float mbar_per_m = 1113.77;
