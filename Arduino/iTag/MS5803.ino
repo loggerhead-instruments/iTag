@@ -181,15 +181,15 @@ void calcPressTemp(){
   temperature = T16 / 100.0;
 
   if (printDiags){
-    SerialUSB.print("MS5803 constant:"); SerialUSB.println(MS5803_constant);
-    SerialUSB.print("D1:"); SerialUSB.println(D1);
-    SerialUSB.print("D2:"); SerialUSB.println(D2);
-    SerialUSB.print("dT:"); SerialUSB.println(dT);
-    SerialUSB.print("T16:"); SerialUSB.println(T16);
-    SerialUSB.print("OFF:"); SerialUSB.println(OFF);
-    SerialUSB.print("SENS:"); SerialUSB.println(SENS);
-    SerialUSB.print("press:"); SerialUSB.println(pressure_mbar);
-    SerialUSB.print("depth:"); SerialUSB.println(depth);
-    SerialUSB.print("temp:"); SerialUSB.println(temperature);
+    //SerialUSB.print("MS5803 constant:"); SerialUSB.print(MS5803_constant);
+    //SerialUSB.print(" D1:"); SerialUSB.print(D1);
+    //SerialUSB.print(" D2:"); SerialUSB.print(D2);
+    //SerialUSB.print(" dT:"); SerialUSB.print(dT);
+    //SerialUSB.print(" T16:"); SerialUSB.print(T16);
+    //SerialUSB.print(" OFF:"); SerialUSB.print(OFF);
+    //SerialUSB.print(" SENS:"); SerialUSB.print(SENS);
+    SerialUSB.print(" press:"); SerialUSB.print(pressure_mbar);
+    SerialUSB.print(" depth:"); SerialUSB.print(depth);
+    SerialUSB.print(" temp:"); SerialUSB.println(temperature);
   }
 }
