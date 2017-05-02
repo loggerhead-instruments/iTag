@@ -19,6 +19,7 @@
 // - skip menu if reset and not connected to USB
 // stop recording if power low
 // autostart after timeout
+// voltage in V units
 // burnFlag and burnDelayMinutes to flash or card
 
 int printDiags = 1;

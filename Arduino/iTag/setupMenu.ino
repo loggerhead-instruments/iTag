@@ -100,6 +100,9 @@ void listFiles(){
   root = SD.open("/");
   printChipId();
   printDirectory(root);
+  SerialUSB.flush();
+  root.rewindDirectory();
+  root.close();
 }
 
 void deleteFiles(){
@@ -217,21 +220,24 @@ void downloadFiles(){
   memset(filename, 0, 15);
   int index = 0;
   long startTime = millis();
-  while(inByte > 30){  //wait for carriage return
+
+  while(1){ 
     if(SerialUSB.available()){
       inByte =  SerialUSB.read();
+      SerialUSB.write(inByte);
       filename[index] = inByte;
       index++;
       if(inByte == 'V' | inByte == 'X') break;
     }
     if(millis() - startTime > 5000) break;
   }
+  
   clearSerial();
 
   File file;
   if(file = SD.open(filename)){
     sendFile(&file);
-    file.close();  //just do one file for now
+    file.close();
   }
   else{
     SerialUSB.println("File open fail");
@@ -240,16 +246,62 @@ void downloadFiles(){
 
 void sendFile(File *file){
   // send data 1024 bytes at a time
-  
+  byte inByte;
   byte data[PACKET];
   int bytes2write;
-  while(file->available()){
-    long bytesAvail = file->available();
-    file->read(data, PACKET);
-    bytes2write = PACKET;
-    if(bytesAvail < PACKET) bytes2write = bytesAvail;
+  byte header;
+  long bytesAvail = file->available();
+  int getNextPacket = 1;
+  
+  while(1){
+    digitalWrite(ledGreen,LED_OFF);
+    bytesAvail = file->available();
+    // wait for a 'C'
+    while(inByte!='C'){
+      if(SerialUSB.available()){
+          inByte =  SerialUSB.read();
+      }
+    }
+
+    header = 1;
+    // read 1 packet from file if first packet or received ACK
+    if(getNextPacket){
+      file->read(data, PACKET);
+      bytes2write = PACKET;
+      if(bytesAvail < PACKET) {
+        bytes2write = bytesAvail;
+        header = 4;
+      }
+    }
+
+    if(!file->available()) header = 4; // no more data in file; last packet
+    
+    // send header byte
+    SerialUSB.write(header);
+    // send packet
     SerialUSB.write(data, bytes2write);
+    SerialUSB.flush();
+    
+    // wait for ACK (6) or NACK (21)
+    while(1){
+      digitalWrite(ledGreen, LED_ON);
+      if(SerialUSB.available()){
+          inByte = SerialUSB.read();
+          digitalWrite(ledGreen, LED_OFF);
+          if(inByte == 6) {
+            getNextPacket = 1;
+            break;
+          }
+          if(inByte == 21) {
+            getNextPacket = 0;
+            break;
+          }
+      }
+    }
+    if((inByte==6) & (header==4)) break; // got ACK on last bit
   }
+
+  digitalWrite(ledGreen,LED_OFF);
 }
 
 void setBurnMinutes(){
