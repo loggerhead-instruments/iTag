@@ -89,6 +89,7 @@ private slots:
     void downloadData();
     void writeDataFile(const QByteArray &data);
     void waitUntilDone();
+    void waitForFileList();
 
     void handleError(QSerialPort::SerialPortError error);
 

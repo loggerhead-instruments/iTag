@@ -71,6 +71,12 @@ QString path = "/w/loggerhead/";
 QString folder = "";
 int newData = 0;
 int nBytesInFile = 0;
+int bytesDownloaded;
+int retryFile = 0;
+int firstPacket = 1;
+int headerByte;
+int waitingForPacket;
+int timeoutCounter;
 
 //! [0]
 MainWindow::MainWindow(QWidget *parent) :
@@ -172,9 +178,28 @@ void MainWindow::writeData(const QByteArray &data)
 void MainWindow::readData()
 {
     QByteArray data = serial->readAll();
-    console->putData(data);
-    newData = 1;
-    if(data.length() > 0 & saveData) writeDataFile(data);
+    int nBytes = data.length();
+    if((nBytes > 0) & (saveData>0))
+    {
+        if(firstPacket & (saveData==1)){
+            headerByte = data.at(0);
+            data.remove(0, 1); //remove header byte before saving file
+            firstPacket = 0;
+            QByteArray hB;
+          //  console->putData("Got header byte: ");
+          //  console->putData(hB.append(headerByte));
+          //  console->putData("\n");
+        }
+        writeDataFile(data);
+        //console->putData(data);
+        bytesDownloaded += data.length();
+        newData = 1;
+    }
+    else {
+       if(nBytes>0){
+           console->putData(data);
+        }
+    }
 }
 //! [7]
 
@@ -209,18 +234,21 @@ void MainWindow::showStatusMessage(const QString &message)
 void MainWindow::downloadData()
 {
     // send 2
+    saveData = -1;
     QByteArray menuChoice;
     menuChoice.append('2');
     serial->write(menuChoice);
     serial->flush();
-  //  QThread::msleep(10);
+    console->putData("Download \n");
 
  //   QByteArray data = serial->readAll();  //clear buffer
 
     // send filename to download
     serial->write(currentFile.toLocal8Bit());
     serial->flush();
+    waitForFileList(); //using this for a timeout to make sure got name
     saveData = 1;
+    bytesDownloaded = 0;
 }
 
 // get file list and then call download file for each one
@@ -230,6 +258,7 @@ void MainWindow::on_actionactionDownload_triggered()
     QApplication::setOverrideCursor(Qt::WaitCursor);
     // get file list and bytes and tagID
 
+    console->putData("Download started\n");
     currentFile = "FILELIST.CSV";
     QFile file(path + currentFile); // remove list of files if exists
     if (file.exists())
@@ -237,13 +266,14 @@ void MainWindow::on_actionactionDownload_triggered()
     else
         file.close();
     currentFile = "FILELIST.CSV";
-    saveData = 1;
+    saveData = 2;
     QByteArray menuChoice;
     menuChoice.append('1');
     serial->write(menuChoice);
     serial->flush();
-    waitUntilDone();
+    waitForFileList();
 
+    console->putData("File list saved\n");
     QFile fileList(path + currentFile);
     fileList.open(QIODevice::ReadOnly | QIODevice::Text);
     QTextStream in(&fileList);
@@ -255,32 +285,134 @@ void MainWindow::on_actionactionDownload_triggered()
     if(!QDir(path + folder).exists()) QDir().mkdir(path + folder);
 
     while(1){
+        retryFile = 0;
         line = in.readLine();
         if (line == "") break;
         QStringList nextFile = line.split(",");
         currentFile = nextFile.at(0);
-        console->putData(currentFile.toLocal8Bit());
         nBytesInFile = nextFile.at(1).toInt();
-        console->putData(nextFile.at(1).toLocal8Bit());
+        QFile file(path + folder + currentFile);
+        if (file.exists())
+            file.remove();
+        else
+            file.close();
         if(nBytesInFile>0){
+            console->putData(currentFile.toLocal8Bit());
+            console->putData(": ");
+            console->putData(nextFile.at(1).toLocal8Bit());
+            console->putData("\n");
             downloadData();
             waitUntilDone();
+            if(retryFile){
+                console->putData("\nRetry\n");
+                console->putData(currentFile.toLocal8Bit());
+                console->putData(": ");
+                console->putData(nextFile.at(1).toLocal8Bit());
+                console->putData("\n");
+//                QString bytesDownloadedS = QString::number(bytesDownloaded);
+//                console->putData(" Bytes downloaded: ");
+//                console->putData(bytesDownloadedS.toLocal8Bit());
+//                console->putData("\n");
+                if (file.exists())
+                    file.remove();
+                else
+                    file.close();
+                downloadData();
+                waitUntilDone();
+            }
+            //QString bytesDownloadedS = QString::number(bytesDownloaded);
+            //console->putData("Bytes downloaded: ");
+            //console->putData(bytesDownloadedS.toLocal8Bit());
+            //console->putData("\n");
         }
     }
     fileList.close();
     saveData = 0;
-
+    console->putData("\nFile download done\n");
     QApplication::restoreOverrideCursor();
+}
+
+void MainWindow::waitForFileList(){
+    QTime qtime;
+    qtime.start();
+
+    while(1){
+        qApp->processEvents();
+        if (newData == 1) {
+            qtime.restart();
+            newData = 0;
+        }
+        if(qtime.elapsed() > 3000){
+            break; // x ms with not complete packet received
+        }
+    }
 }
 
 void MainWindow::waitUntilDone(){
     QTime qtime;
+    QByteArray requestPacket, ACK, NACK, infoPacket;
+    requestPacket.append('C');
+    ACK.append(6);
+    NACK.append(21);
     qtime.start();
+    timeoutCounter = 0;
+
+    // packet processor
     while(1){
-        if (newData == 1) qtime.restart();
-        if(qtime.elapsed() > 2000) break; // x ms with no new data get out
+        // request packet with "C"
+        serial->write(requestPacket);
+        serial->flush();
+        console->putData(".");
+        saveData = 1;
+        firstPacket = 1;
+        waitingForPacket = 1;
+
+        // wait until packet recieved or timeout
+        while(waitingForPacket){
+            qApp->processEvents();
+            if (newData == 1) {
+                qtime.restart();
+                newData = 0;
+            }
+            if(qtime.elapsed() > 3000){
+                timeoutCounter++;
+              //  console->putData("Timeout\n");
+                break; // x ms with not complete packet received
+            }
+            if(bytesDownloaded>=1023) break;
+        }
+        // To do: check CRC
+
+
+        if(headerByte==4) console->putData("End\n");
+        if((bytesDownloaded==1024) | (headerByte == 4)){
+            serial->write(ACK);
+            serial->flush();
+            //console->putData("ACK\n");
+            timeoutCounter = 0;
+        }
+        else{
+            serial->write(NACK);
+            serial->flush();
+            console->putData("NACK\n");
+            retryFile = 1;  // being lazy here...if get bad packet, just restart file
+            break;
+        }
+
+        // details of each packet
+//        console->putData("bytes recvd: ");
+//        char buffer[10];
+//        sprintf(buffer, "%d",bytesDownloaded);
+//        infoPacket.append(buffer);
+//        console->putData(infoPacket);
+//        infoPacket.clear();
+//        console->putData("\n");
+
+        if(headerByte == 4) break; // got last packet
+        if(timeoutCounter>5) break; // 5 timeouts in a row with no data quit
+        bytesDownloaded = 0;
+        qtime.restart();
         qApp->processEvents();
-        newData = 0;
     }
 }
 
