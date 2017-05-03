@@ -12,8 +12,6 @@
 // To Do:
 // - re-start when plug-in USB
 // - file delete does not delete files if disconnected and reconnected (format?)
-// - error check download (check size minimally)
-// - Setup timer interrupt with sleep to read IMU
 // - Optimize power draw
 // - Define reset function
 // - skip menu if reset and not connected to USB
@@ -38,8 +36,12 @@ int printDiags = 1;
   #define MS5803_constant 819.2
 #endif
 
-float sensor_srate = 1.0;
+#define CPU_HZ 48000000
+#define TIMER_PRESCALER_DIV 1024
+
+float sensor_srate = 1.0;  
 float imu_srate = 100.0;
+int ssCounter; // used to get different sample rates from one timer based on imu_srate
 
 int nbufsPerFile = 60; // number of seconds per file
 int bufCount = 0;
@@ -68,9 +70,14 @@ int pressure_sensor;
 
 // IMU
 int FIFOpts;
-int maxFIFOpts;
-#define BUFFERSIZE 54 //288 // divisible by 18 bytes (e.g. A*3,M*3,G*3) // burst read needs to be <64?
-byte imuBuffer[BUFFERSIZE]; // buffer used to store IMU sensor data before writes in bytes
+#define IMUBUFFERSIZE 1800 // used this length because it is divisible by 18 bytes (e.g. A*3,M*3,G*3);
+volatile byte imuBuffer[IMUBUFFERSIZE]; // buffer used to store IMU sensor data before writes in bytes
+volatile byte time2writeIMU=0; 
+volatile int IMUCounter = 0;
+volatile int bufferposIMU = 0;
+int halfbufIMU = IMUBUFFERSIZE/2;
+volatile boolean firstwrittenIMU;
+volatile uint8_t imuTempBuffer[20];
 int16_t accel_x;
 int16_t accel_y;
 int16_t accel_z;
@@ -183,7 +190,7 @@ void setup() {
   if (!SD.begin(chipSelect)) {
     SerialUSB.println("Card failed");
   }
-  setupMenu();
+//  setupMenu();
   
   sensorInit();
   if(printDiags) SerialUSB.println("Sensors initialized");
@@ -194,10 +201,8 @@ void setup() {
   FileInit();
   if(printDiags) SerialUSB.println("Card initialized"); 
   if(printDiags) SerialUSB.println("Starting main loop");
-  //startTimer(); // start timer
-  //rtc.enableAlarm(rtc.MATCH_SS); // alarm once per second
-  //rtc.attachInterrupt(alarmMatch);
-  //alarmMatch();
+  startTimer((int) imu_srate); // start timer
+
   if (pressure_sensor==2) updateTemp();  // get first reading ready
   resetGyroFIFO(); // reset Gyro FIFO
 }
@@ -205,100 +210,107 @@ void setup() {
 byte newSecond;
 byte oldSecond;
 void loop() {
-   // IMU
-    while (pollImu(1)){
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_ON);
-      int startTime = millis();
-      if(dataFile.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
-      if(dataFile.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
-//      if(printDiags){
-//         SerialUSB.print("  Write time: ");
-//         SerialUSB.print(millis() - startTime);
-//         SerialUSB.println(" ms");
-//       }
-       if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_OFF);
+  // every second check depth and burn
+  newSecond = rtc.getSeconds();
+  if (newSecond != oldSecond) {
+    //sampleSensors();
+    if((depth < depthThreshold) | burnTriggered) {
+      vhfOn();
     }
-
-    // sample other sensors once per second
-    newSecond = rtc.getSeconds();
-    if (newSecond != oldSecond) {
-      sampleSensors();
-      if((depth < depthThreshold) | burnTriggered) {
-        vhfOn();
-      }
-      else{
-        vhfOff();
-      }
-      
-      if(burnFlag){
-        long curTime = RTCToUNIXTime(year, month, day, hour, minute, second);
-        long diffMinutes = (curTime - burnTime) / 60;
-        if((curTime > burnTime) & (diffMinutes < burnDurMin)) {
-          digitalWrite(BURN, HIGH);
-          burnTriggered = 1;
-          }
-        else{
-          digitalWrite(BURN, LOW);
-        }
-      }
-      oldSecond = newSecond;
-      bufCount++;
+    else{
+      vhfOff();
     }
     
-    // write Pressure & Temperature to file
-    if(time2writePT==1){
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_ON);
-      if(dataFile.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
-      if(dataFile.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(); 
-      time2writePT = 0;
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_OFF);
-    }
-    if(time2writePT==2){
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_ON);
-      if(dataFile.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
-      if(dataFile.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();     
-      time2writePT = 0;
-      if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_OFF);
-    }   
-  
-    // write RGB values to file
-    if(time2writeRGB==1){
-      if(dataFile.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
-      if(dataFile.write((uint8_t *)&RGBbuffer[0], halfbufRGB)==-1) resetFunc(); 
-      time2writeRGB = 0;
-    }
-    if(time2writeRGB==2){
-      if(dataFile.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
-      if(dataFile.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
-      time2writeRGB = 0;
-    } 
-
-    // write O2 values to file
-    if(time2writeO2==1){
-      if(dataFile.write((uint8_t *)&sidRec[0],sizeof(SID_REC))==-1) resetFunc();
-      if(dataFile.write((uint8_t *)&O2buffer[0], halfbufO2 * 4)==-1) resetFunc(); 
-      time2writeO2 = 0;
-    }
-    if(time2writeO2==2){
-      if(dataFile.write((uint8_t *)&sidRec[0],sizeof(SID_REC))==-1) resetFunc();
-      if(dataFile.write((uint8_t *)&O2buffer[halfbufO2], halfbufO2 *4)==-1) resetFunc();     
-      time2writeO2 = 0;
-    }
-
-    if(bufCount >= nbufsPerFile){       // time to stop?
-      introPeriod = 0;  //LEDS on for first file
-      digitalWrite(ledGreen,LED_OFF);
-      dataFile.close();
-      FileInit();  // make a new file
-      bufCount = 0;
-      if(printDiags) {
-        SerialUSB.print("Max FIFO:"); 
-        SerialUSB.println(maxFIFOpts);
+    if(burnFlag){
+      long curTime = RTCToUNIXTime(year, month, day, hour, minute, second);
+      long diffMinutes = (curTime - burnTime) / 60;
+      if((curTime > burnTime) & (diffMinutes < burnDurMin)) {
+        digitalWrite(BURN, HIGH);
+        burnTriggered = 1;
+        }
+      else{
+        digitalWrite(BURN, LOW);
       }
-      maxFIFOpts = 0;
     }
+    oldSecond = newSecond;
+    bufCount++;
+  }
 
-  //rtc.standbyMode(); // sleep  
+  // write IMU values to file
+  if(time2writeIMU==1)
+  {
+    digitalWrite(ledGreen, HIGH);
+    if(dataFile.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
+    if(dataFile.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(); 
+    time2writeIMU = 0;
+  }
+  if(time2writeIMU==2)
+  {
+    digitalWrite(ledGreen, LOW);
+    if(dataFile.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
+    if(dataFile.write((uint8_t *) & imuBuffer[halfbufIMU], halfbufIMU)==-1) resetFunc();     
+    time2writeIMU = 0;
+  } 
+  
+  // write RGB values to file
+  if(time2writeRGB==1){
+    if(dataFile.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
+    if(dataFile.write((uint8_t *)&RGBbuffer[0], halfbufRGB)==-1) resetFunc(); 
+    time2writeRGB = 0;
+  }
+  if(time2writeRGB==2){
+    if(dataFile.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
+    if(dataFile.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
+    time2writeRGB = 0;
+  }
+  
+  // write Pressure & Temperature to file
+  if(time2writePT==1){
+    if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_ON);
+    if(dataFile.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
+    if(dataFile.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(); 
+    time2writePT = 0;
+    if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_OFF);
+  }
+  if(time2writePT==2){
+    if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_ON);
+    if(dataFile.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
+    if(dataFile.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();     
+    time2writePT = 0;
+    if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_OFF);
+  }   
+
+  // write RGB values to file
+  if(time2writeRGB==1){
+    if(dataFile.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
+    if(dataFile.write((uint8_t *)&RGBbuffer[0], halfbufRGB)==-1) resetFunc(); 
+    time2writeRGB = 0;
+  }
+  if(time2writeRGB==2){
+    if(dataFile.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
+    if(dataFile.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
+    time2writeRGB = 0;
+  } 
+
+  // write O2 values to file
+  if(time2writeO2==1){
+    if(dataFile.write((uint8_t *)&sidRec[0],sizeof(SID_REC))==-1) resetFunc();
+    if(dataFile.write((uint8_t *)&O2buffer[0], halfbufO2 * 4)==-1) resetFunc(); 
+    time2writeO2 = 0;
+  }
+  if(time2writeO2==2){
+    if(dataFile.write((uint8_t *)&sidRec[0],sizeof(SID_REC))==-1) resetFunc();
+    if(dataFile.write((uint8_t *)&O2buffer[halfbufO2], halfbufO2 *4)==-1) resetFunc();     
+    time2writeO2 = 0;
+  }
+
+  if(bufCount >= nbufsPerFile){       // time to stop?
+    introPeriod = 0;  //LEDS on for first file
+    digitalWrite(ledGreen,LED_OFF);
+    dataFile.close();
+    FileInit();  // make a new file
+    bufCount = 0;
+  }
 }
 
 void sensorInit(){
@@ -389,9 +401,36 @@ void sensorInit(){
 
   // IMU
   SerialUSB.println(mpuInit(1));
-  //startTimer();
-  delay(100);
-  pollImu(1);
+    for(int i=0; i<10; i++){
+      readImu();
+      accel_x = (int16_t) ((int16_t)imuTempBuffer[0] << 8 | imuTempBuffer[1]);    
+      accel_y = (int16_t) ((int16_t)imuTempBuffer[2] << 8 | imuTempBuffer[3]);   
+      accel_z = (int16_t) ((int16_t)imuTempBuffer[4] << 8 | imuTempBuffer[5]);    
+      
+      gyro_temp = (int16_t) (((int16_t)imuTempBuffer[6]) << 8 | imuTempBuffer[7]);   
+     
+      gyro_x = (int16_t)  (((int16_t)imuTempBuffer[8] << 8) | imuTempBuffer[9]);   
+      gyro_y = (int16_t)  (((int16_t)imuTempBuffer[10] << 8) | imuTempBuffer[11]); 
+      gyro_z = (int16_t)  (((int16_t)imuTempBuffer[12] << 8) | imuTempBuffer[13]);   
+      
+      magnetom_x = (int16_t)  (((int16_t)imuTempBuffer[14] << 8) | imuTempBuffer[15]);   
+      magnetom_y = (int16_t)  (((int16_t)imuTempBuffer[16] << 8) | imuTempBuffer[17]);   
+      magnetom_z = (int16_t)  (((int16_t)imuTempBuffer[18] << 8) | imuTempBuffer[19]);  
+  
+      SerialUSB.print("a/g/m/t:\t");
+      SerialUSB.print( accel_x); SerialUSB.print("\t");
+      SerialUSB.print( accel_y); SerialUSB.print("\t");
+      SerialUSB.print( accel_z); SerialUSB.print("\t");
+      SerialUSB.print(gyro_x); SerialUSB.print("\t");
+      SerialUSB.print(gyro_y); SerialUSB.print("\t");
+      SerialUSB.print(gyro_z); SerialUSB.print("\t");
+      SerialUSB.print(magnetom_x); SerialUSB.print("\t");
+      SerialUSB.print(magnetom_y); SerialUSB.print("\t");
+      SerialUSB.print(magnetom_z); SerialUSB.print("\t");
+      SerialUSB.println(gyro_temp);
+      delay(200);
+    }
+
 
   //while(irq_ovf_count < 20);
   //stopTimer();
@@ -463,119 +502,26 @@ void incrementO2bufpos(float val){
   }
 }
 
-int pollImu(int imuDiags){
-  int startTime = millis();
-  FIFOpts=getImuFifo();
-  //if (printDiags) SerialUSB.print("IMU FIFO pts: ");
-  //if (printDiags) SerialUSB.println(FIFOpts);
-  if(FIFOpts>BUFFERSIZE)  //once have enough data for a block, download to buffer
-  {
-     if(FIFOpts>maxFIFOpts) maxFIFOpts = FIFOpts;
-     Read_Gyro(BUFFERSIZE);  //download block from FIFO
-     if(printDiags){
-       int iStatus = intStatus();
-       if (iStatus > 1) {
-         SerialUSB.println("*****Overflow*******");
-         SerialUSB.print(iStatus);
-         SerialUSB.print("  IMU Read: ");
-         SerialUSB.print(millis() - startTime);
-         SerialUSB.print(" ms  FIFO:");
-         SerialUSB.println(FIFOpts);
-       }
-     }
-    if (imuDiags){
-      // print out first line of block
-      // MSB byte first, then LSB, X,Y,Z
-      accel_x = (int16_t) ((int16_t)imuBuffer[0] << 8 | imuBuffer[1]);    
-      accel_y = (int16_t) ((int16_t)imuBuffer[2] << 8 | imuBuffer[3]);   
-      accel_z = (int16_t) ((int16_t)imuBuffer[4] << 8 | imuBuffer[5]);    
-      
-    //  gyro_temp = (int16_t) (((int16_t)imuBuffer[6]) << 8 | (int16_t)imuBuffer[7]);   
-     
-      gyro_x = (int16_t)  (((int16_t)imuBuffer[6] << 8) | imuBuffer[7]);   
-      gyro_y = (int16_t)  (((int16_t)imuBuffer[8] << 8) | imuBuffer[9]); 
-      gyro_z = (int16_t)  (((int16_t)imuBuffer[10] << 8) | imuBuffer[11]);   
-      
-      magnetom_x = (int16_t)  (((int16_t)imuBuffer[12] << 8) | imuBuffer[13]);   
-      magnetom_y = (int16_t)  (((int16_t)imuBuffer[14] << 8) | imuBuffer[15]);   
-      magnetom_z = (int16_t)  (((int16_t)imuBuffer[16] << 8) | imuBuffer[17]);  
-  
-      SerialUSB.print("a/g/m:\t");
-      SerialUSB.print( accel_x); SerialUSB.print("\t");
-      SerialUSB.print( accel_y); SerialUSB.print("\t");
-      SerialUSB.print( accel_z); SerialUSB.print("\t");
-      SerialUSB.print(gyro_x); SerialUSB.print("\t");
-      SerialUSB.print(gyro_y); SerialUSB.print("\t");
-      SerialUSB.print(gyro_z); SerialUSB.print("\t");
-      SerialUSB.print(magnetom_x); SerialUSB.print("\t");
-      SerialUSB.print(magnetom_y); SerialUSB.print("\t");
-      SerialUSB.print(magnetom_z); SerialUSB.println("\t");
-      //SerialUSB.println((float) gyro_temp/337.87+21);
-    }
+void incrementIMU(){
+  for(int i=0; i<6; i++){
+    imuBuffer[bufferposIMU] = (uint8_t) imuTempBuffer[i]; //accelerometer X,Y,Z
+    bufferposIMU++;
   }
-  return FIFOpts>BUFFERSIZE;
-}
-
-void startTimer(){
-  
-  // Enable clock for TC 
-  REG_GCLK_CLKCTRL = (uint16_t) (GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID ( GCM_TCC2_TC3 ) ) ;
-  while ( GCLK->STATUS.bit.SYNCBUSY == 1 ); // wait for sync 
-
-  // The type cast must fit with the selected timer mode 
-  TcCount16* TC = (TcCount16*) TC3; // get timer struct
-
-  TC->CTRLA.reg &= ~TC_CTRLA_ENABLE;   // Disable TCx
-  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
-
-  TC->CTRLA.reg |= TC_CTRLA_MODE_COUNT16;  // Set Timer counter Mode to 16 bits
-  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
-  TC->CTRLA.reg |= TC_CTRLA_WAVEGEN_NFRQ; // Set TC as normal Normal Frq
-  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
-
-  TC->CTRLA.bit.RUNSTDBY = 1;  //allow to run in standby
-  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
-  
-  TC->CTRLA.reg |= TC_CTRLA_PRESCALER_DIV64;   // Set prescaler
-  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
-  
-//  TC->PER.reg = 0xFF;   // Set counter Top using the PER register but the 16/32 bit timer counts allway to max  
- // while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
-
-  TC->CC[0].reg = 0xFFF;
-  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
-  
-  // Interrupts 
-  TC->INTENSET.reg = 0;              // disable all interrupts
-  TC->INTENSET.bit.OVF = 1;          // disable overflow
-  TC->INTENSET.bit.MC0 = 1;          // enable compare match to CC0
-
-  // Enable InterruptVector
-  NVIC_EnableIRQ(TC3_IRQn);
-
-  // Enable TC
-  TC->CTRLA.reg |= TC_CTRLA_ENABLE;
-  while (TC->STATUS.bit.SYNCBUSY == 1); // wait for sync 
-}
-
-void stopTimer(){
-  // TcCount16* TC = (TcCount16*) TC3; // get timer struct
-   NVIC_DisableIRQ(TC3_IRQn);
-}
-
-void TC3_Handler()
-{
-    TcCount16* TC = (TcCount16*) TC3; // get timer struct
-  if (TC->INTFLAG.bit.OVF == 1) {  // A overflow caused the interrupt
-      TC->INTFLAG.bit.OVF = 1;    // writing a one clears the flag ovf flag
-      irq_ovf_count++;
-//      if(toggleLED) {
-//        toggleLED = LOW;
-//      }
-//      else{
-//        toggleLED = HIGH;
-//      }
-//      digitalWrite(ledGreen,toggleLED);
+  // skipping IMU temperature in 6 and 7
+  for(int i=8; i<20; i++){
+    imuBuffer[bufferposIMU] = (uint8_t) imuTempBuffer[i]; //gyro and mag
+    bufferposIMU++;
+  }
+  if(bufferposIMU==IMUBUFFERSIZE)
+  {
+    bufferposIMU = 0;
+    time2writeIMU= 2;  // set flag to write second half
+    firstwrittenIMU = 0; 
+  }
+  if((bufferposIMU>=halfbufIMU) & !firstwrittenIMU)  //at end of first buffer
+  {
+    time2writeIMU = 1; 
+    firstwrittenIMU = 1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
   }
 }
 
@@ -725,8 +671,6 @@ void FileInit()
       logFile.print(',');
       logFile.print(voltage); 
       logFile.print(',');
-      logFile.print(maxFIFOpts);
-      logFile.print(',');
       logFile.println(intStatus());
       if(voltage < 3.0){
         logFile.println("Stopping because Voltage less than 3.0 V");
@@ -769,10 +713,10 @@ void FileInit()
   dataFile.write((uint8_t *) &dfh, sizeof(dfh));
   
   // write SID_SPEC depending on sensors chosen
-  addSid(0, "O2", RAW_SID, halfbufO2, sensor[0], DFORM_FLOAT32, sensor_srate);   
-  addSid(1, "PT", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);    
+  addSid(0, "O2TMP", RAW_SID, halfbufO2, sensor[0], DFORM_FLOAT32, sensor_srate);   
+  addSid(1, "PRTMP", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);    
   addSid(2, "LIGHT", RAW_SID, halfbufRGB / 2, sensor[2], DFORM_SHORT, sensor_srate);
-  addSid(3, "IMU", RAW_SID, BUFFERSIZE / 2, sensor[3], DFORM_SHORT, imu_srate);
+  addSid(3, "3DAMG", RAW_SID, halfbufIMU / 2, sensor[3], DFORM_SHORT, imu_srate);
   addSid(4, "END", 0, 0, sensor[4], 0, 0);
   if(printDiags){
     SerialUSB.print("Buffers: ");
@@ -781,6 +725,18 @@ void FileInit()
 }
 
 void sampleSensors(void){  //interrupt at update_rate
+  ssCounter++;
+  
+  readImu();
+  incrementIMU();
+  if(printDiags){
+    accel_x = (int16_t) ((int16_t)imuTempBuffer[0] << 8 | imuTempBuffer[1]);
+    SerialUSB.print("accel:");
+    SerialUSB.println(accel_x);
+  }
+  
+  if(ssCounter>=(int)(imu_srate/sensor_srate)){
+    ssCounter = 0;
     // MS5803 pressure and temperature
     if (pressure_sensor==1){
       if(togglePress){
@@ -796,7 +752,7 @@ void sampleSensors(void){  //interrupt at update_rate
         if(printDiags) SerialUSB.print("t ");
       }
     }
-    
+      
     // Keller PA7LD pressure and temperature
     if (pressure_sensor==2){
       kellerRead();
@@ -813,13 +769,14 @@ void sampleSensors(void){  //interrupt at update_rate
     incrementRGBbufpos(islRed);
     incrementRGBbufpos(islGreen);
     incrementRGBbufpos(islBlue);
-  
-  if (pressure_sensor==1) calcPressTemp(); // MS5803 pressure and temperature
-  if (pressure_sensor>0){  //both Keller and MS5803
-    PTbuffer[bufferposPT] = pressure_mbar;
-    incrementPTbufpos();
-    PTbuffer[bufferposPT] = temperature;
-    incrementPTbufpos();
+    
+    if (pressure_sensor==1) calcPressTemp(); // MS5803 pressure and temperature
+    if (pressure_sensor>0){  //both Keller and MS5803
+      PTbuffer[bufferposPT] = pressure_mbar;
+      incrementPTbufpos();
+      PTbuffer[bufferposPT] = temperature;
+      incrementPTbufpos();
+    }
   }
 }
   
@@ -838,16 +795,6 @@ void getTime(){
   hour = rtc.getHours();
   minute = rtc.getMinutes();
   second = rtc.getSeconds();
-}
-
-void alarmMatch(){
-  // wake from interrupt
-  SerialUSB.print("ALARM ");
-  SerialUSB.println(rtc.getSeconds());
-  byte alarmSecond = rtc.getSeconds() + 1;
-  if(alarmSecond == 60) alarmSecond = 0;
-  rtc.setAlarmSeconds(alarmSecond);
-  sampleSensors();
 }
 
 void vhfOn(){
@@ -898,4 +845,65 @@ unsigned long RTCToUNIXTime(int uYear, int uMonth, int uDay, int uHour, int uMin
   Ticks += uSecond;
 
   return Ticks;
+}
+
+void setTimerFrequency(int frequencyHz) {
+  int compareValue = (CPU_HZ / (TIMER_PRESCALER_DIV * frequencyHz)) - 1;
+  TcCount16* TC = (TcCount16*) TC3;
+  // Make sure the count is in a proportional position to where it was
+  // to prevent any jitter or disconnect when changing the compare value.
+  TC->COUNT.reg = map(TC->COUNT.reg, 0, TC->CC[0].reg, 0, compareValue);
+  TC->CC[0].reg = compareValue;
+  while (TC->STATUS.bit.SYNCBUSY == 1);
+}
+
+/*
+This is a slightly modified version of the timer setup found at:
+https://github.com/maxbader/arduino_tools
+ */
+void startTimer(int frequencyHz) {
+  REG_GCLK_CLKCTRL = (uint16_t) (GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID (GCM_TCC2_TC3)) ;
+  while ( GCLK->STATUS.bit.SYNCBUSY == 1 );
+
+  TcCount16* TC = (TcCount16*) TC3;
+
+  TC->CTRLA.reg &= ~TC_CTRLA_ENABLE;
+
+  // Use the 16-bit timer
+  TC->CTRLA.reg |= TC_CTRLA_MODE_COUNT16;
+  while (TC->STATUS.bit.SYNCBUSY == 1);
+
+  // Use match mode so that the timer counter resets when the count matches the compare register
+  TC->CTRLA.reg |= TC_CTRLA_WAVEGEN_MFRQ;
+  while (TC->STATUS.bit.SYNCBUSY == 1);
+
+  // Set prescaler to 1024
+  TC->CTRLA.reg |= TC_CTRLA_PRESCALER_DIV1024;
+  while (TC->STATUS.bit.SYNCBUSY == 1);
+
+  setTimerFrequency(frequencyHz);
+
+  // Enable the compare interrupt
+  TC->INTENSET.reg = 0;
+  TC->INTENSET.bit.MC0 = 1;
+
+  NVIC_EnableIRQ(TC3_IRQn);
+
+  TC->CTRLA.reg |= TC_CTRLA_ENABLE;
+  while (TC->STATUS.bit.SYNCBUSY == 1);
+}
+
+void TC3_Handler() {
+  TcCount16* TC = (TcCount16*) TC3;
+  // If this interrupt is due to the compare register matching the timer count
+  // we toggle the LED.
+  if (TC->INTFLAG.bit.MC0 == 1) {
+    TC->INTFLAG.bit.MC0 = 1;
+    sampleSensors();
+  }
+}
+
+void stopTimer(){
+  // TcCount16* TC = (TcCount16*) TC3; // get timer struct
+   NVIC_DisableIRQ(TC3_IRQn);
 }
