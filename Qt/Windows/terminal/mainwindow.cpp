@@ -342,7 +342,7 @@ void MainWindow::waitForFileList(){
             qtime.restart();
             newData = 0;
         }
-        if(qtime.elapsed() > 3000){
+        if(qtime.elapsed() > 1000){
             break; // x ms with not complete packet received
         }
     }
@@ -374,12 +374,12 @@ void MainWindow::waitUntilDone(){
                 qtime.restart();
                 newData = 0;
             }
-            if(qtime.elapsed() > 3000){
+            if(qtime.elapsed() > 2000){
                 timeoutCounter++;
               //  console->putData("Timeout\n");
                 break; // x ms with not complete packet received
             }
-            if(bytesDownloaded>=1023) break;
+            if(bytesDownloaded==1024) break;
         }
         // To do: check CRC
 
@@ -396,7 +396,6 @@ void MainWindow::waitUntilDone(){
             serial->flush();
             console->putData("NACK\n");
             retryFile = 1;  // being lazy here...if get bad packet, just restart file
-            break;
         }
 
         // details of each packet
