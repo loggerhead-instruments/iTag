@@ -18,7 +18,6 @@
 // stop recording if power low
 // autostart after timeout
 // voltage in V units
-// burnFlag and burnDelayMinutes to flash or card
 
 int printDiags = 1;
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
@@ -189,8 +188,8 @@ void setup() {
   if (!SD.begin(chipSelect)) {
     SerialUSB.println("Card failed");
   }
-//  setupMenu();
   
+  setupMenu();  
   sensorInit();
   if(printDiags) SerialUSB.println("Sensors initialized");
   setupDataStructures();
@@ -209,6 +208,15 @@ void setup() {
 byte newSecond;
 byte oldSecond;
 void loop() {
+  //PM->SLEEP.reg |= PM_SLEEP_IDLE_CPU;  // Enable Idle0 mode - sleep CPU clock only
+//  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+//  USB->DEVICE.CTRLA.reg &= ~USB_CTRLA_ENABLE; //disable USB
+//  __WFI(); // enter sleep mode and wait for interrupt
+//
+//  // ... SLEEPING ...
+//
+//  USB->DEVICE.CTRLA.reg |= USB_CTRLA_ENABLE; //enable USB
+  
   // every second check depth and burn
   newSecond = rtc.getSeconds();
   if (newSecond != oldSecond) {
@@ -857,12 +865,16 @@ This is a slightly modified version of the timer setup found at:
 https://github.com/maxbader/arduino_tools
  */
 void startTimer(int frequencyHz) {
+  //GCLK->GENCTRL.reg |= GCLK_GENCTRL_ID(0) | GCLK_GENCTRL_RUNSTDBY;
   REG_GCLK_CLKCTRL = (uint16_t) (GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID (GCM_TCC2_TC3)) ;
   while ( GCLK->STATUS.bit.SYNCBUSY == 1 );
 
+  
   TcCount16* TC = (TcCount16*) TC3;
 
   TC->CTRLA.reg &= ~TC_CTRLA_ENABLE;
+
+  //TC->CTRLA.reg |= TC_CTRLA_RUNSTDBY;
 
   // Use the 16-bit timer
   TC->CTRLA.reg |= TC_CTRLA_MODE_COUNT16;
