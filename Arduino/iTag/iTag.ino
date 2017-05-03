@@ -118,7 +118,6 @@ uint16_t TEMPSENS; //Temperature sensitivity coefficient
 #define PTBUFFERSIZE 40
 float PTbuffer[PTBUFFERSIZE];
 byte time2writePT = 0; 
-int ptCounter = 0;
 volatile byte bufferposPT=0;
 byte halfbufPT = PTBUFFERSIZE/2;
 boolean firstwrittenPT;
@@ -239,14 +238,12 @@ void loop() {
   // write IMU values to file
   if(time2writeIMU==1)
   {
-    digitalWrite(ledGreen, HIGH);
     if(dataFile.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
     if(dataFile.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(); 
     time2writeIMU = 0;
   }
   if(time2writeIMU==2)
   {
-    digitalWrite(ledGreen, LOW);
     if(dataFile.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
     if(dataFile.write((uint8_t *) & imuBuffer[halfbufIMU], halfbufIMU)==-1) resetFunc();     
     time2writeIMU = 0;
@@ -729,28 +726,26 @@ void sampleSensors(void){  //interrupt at update_rate
   
   readImu();
   incrementIMU();
-  if(printDiags){
-    accel_x = (int16_t) ((int16_t)imuTempBuffer[0] << 8 | imuTempBuffer[1]);
-    SerialUSB.print("accel:");
-    SerialUSB.println(accel_x);
+//  if(printDiags){
+//    accel_x = (int16_t) ((int16_t)imuTempBuffer[0] << 8 | imuTempBuffer[1]);
+//    SerialUSB.print("accel:");
+//    SerialUSB.println(accel_x);
+//  }
+
+  // MS5803 start temperature conversion half-way through
+  if((ssCounter>=(0.5 * imu_srate / sensor_srate)) & (pressure_sensor==1)  & togglePress){ 
+    readPress();   
+    updateTemp();
+    togglePress = 0;
   }
   
   if(ssCounter>=(int)(imu_srate/sensor_srate)){
     ssCounter = 0;
     // MS5803 pressure and temperature
     if (pressure_sensor==1){
-      if(togglePress){
-        readPress();
-        updateTemp();
-        togglePress = 0;
-        if(printDiags) SerialUSB.print("p ");
-      }
-      else{
         readTemp();
         updatePress();
         togglePress = 1;
-        if(printDiags) SerialUSB.print("t ");
-      }
     }
       
     // Keller PA7LD pressure and temperature

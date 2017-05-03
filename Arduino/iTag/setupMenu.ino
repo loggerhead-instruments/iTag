@@ -252,15 +252,18 @@ void sendFile(File *file){
   byte header;
   long bytesAvail = file->available();
   int getNextPacket = 1;
+  long startTime;
   
   while(1){
     digitalWrite(ledGreen,LED_OFF);
     bytesAvail = file->available();
+    startTime = millis();
     // wait for a 'C'
     while(inByte!='C'){
       if(SerialUSB.available()){
           inByte =  SerialUSB.read();
       }
+      if(millis()-startTime > 10000) return; // timeout
     }
 
     header = 1;
@@ -283,7 +286,9 @@ void sendFile(File *file){
     SerialUSB.flush();
     
     // wait for ACK (6) or NACK (21)
+    startTime = millis();
     while(1){
+      if(millis()-startTime > 10000) return; // timeout
       digitalWrite(ledGreen, LED_ON);
       if(SerialUSB.available()){
           inByte = SerialUSB.read();
