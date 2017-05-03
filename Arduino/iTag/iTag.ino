@@ -19,7 +19,7 @@
 // autostart after timeout
 // voltage in V units
 
-int printDiags = 1;
+int printDiags = 0;
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
 //#define MS5803_01bar
 #define MS5803_05bar
@@ -246,9 +246,11 @@ void loop() {
   // write IMU values to file
   if(time2writeIMU==1)
   {
+    if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_ON);
     if(dataFile.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
     if(dataFile.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(); 
     time2writeIMU = 0;
+    if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_OFF);
   }
   if(time2writeIMU==2)
   {
@@ -271,18 +273,14 @@ void loop() {
   
   // write Pressure & Temperature to file
   if(time2writePT==1){
-    if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_ON);
     if(dataFile.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
     if(dataFile.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(); 
     time2writePT = 0;
-    if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_OFF);
   }
   if(time2writePT==2){
-    if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_ON);
     if(dataFile.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
     if(dataFile.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();     
     time2writePT = 0;
-    if(LEDSON | introPeriod) digitalWrite(ledGreen,LED_OFF);
   }   
 
   // write RGB values to file
