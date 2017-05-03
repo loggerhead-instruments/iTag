@@ -5,17 +5,19 @@
 
 #include <Wire.h>
 #include <SPI.h>
-#include <SD.h>
+//#include <SD.h>
+#include <SdFat.h>
 #include <RTCZero.h>
 #include "amx32.h"
+
+SdFat sd;
+File dataFile;
 
 // To Do:
 // - re-start when plug-in USB
 // - file delete does not delete files if disconnected and reconnected (format?)
 // - Optimize power draw
 // - Define reset function
-// - skip menu if reset and not connected to USB
-// stop recording if power low
 // autostart after timeout
 // voltage in V units
 
@@ -141,8 +143,6 @@ boolean firstwrittenO2;
 
 float depthThreshold = 2.0; // if < depthThreshold turn VHF on
 
-File dataFile;
-
 /* Create an rtc object */
 RTCZero rtc;
 
@@ -185,7 +185,7 @@ void setup() {
 
   SerialUSB.println("iTag");
   // see if the card is present and can be initialized:
-  if (!SD.begin(chipSelect)) {
+  if (!sd.begin(chipSelect, SPI_FULL_SPEED)) {
     SerialUSB.println("Card failed");
   }
   
@@ -669,7 +669,7 @@ void FileInit()
 
    // log file
    float voltage = readVoltage();
-   if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
+   if(File logFile = sd.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
       logFile.print(filename);
       logFile.print(',');
       logFile.print(voltage); 
@@ -691,7 +691,7 @@ void FileInit()
    }
    if(printDiags) SerialUSB.println("Log file initialized");
    
-   dataFile = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
+   dataFile = sd.open(filename, O_WRITE | O_CREAT | O_EXCL);
    if(printDiags) {
     SerialUSB.print("<<<<<<<<<<<<<<<<<<<<<");
     SerialUSB.println(filename);
@@ -701,7 +701,7 @@ void FileInit()
    while (!dataFile){
     file_count += 1;
     sprintf(filename,"F%06d.amx",file_count); //if can't open just use count
-    dataFile = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
+    dataFile = sd.open(filename, O_WRITE | O_CREAT | O_EXCL);
     if(printDiags) SerialUSB.println(filename);
    }
   //amx file header

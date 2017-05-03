@@ -96,13 +96,9 @@ void printChipId() {
 }
 
 void listFiles(){
-  File root;
-  root = SD.open("/");
+  sd.chdir(); // change to root
   printChipId();
-  printDirectory(root);
-  SerialUSB.flush();
-  root.rewindDirectory();
-  root.close();
+  printDirectory(false);
 }
 
 void deleteFiles(){
@@ -118,26 +114,9 @@ void deleteFiles(){
     }
   }
   SerialUSB.println("Deleting Files");
-  File dir;
+  SdFile file;
   char filename[40];
-  dir = SD.open("/");
-  while (true) {
-    File entry =  dir.openNextFile();
-    if (! entry) {
-      // no more files
-      break;
-    }
-    strcpy(filename, entry.name());
-    if (entry.isDirectory()) {
-      entry.close();
-    } else {
-      // delete file
-      entry.close();
-      SerialUSB.print("Delete ");
-      SerialUSB.print(filename); SerialUSB.print(" ");
-      SerialUSB.println(SD.remove(filename));
-    }
-  }
+  printDirectory(true);
   SerialUSB.println("Done deleting");
 }
 void serialSetTime(){
@@ -175,23 +154,25 @@ void serialSetTime(){
 //170202142700
 
 
-void printDirectory(File dir) {
-  while (true) {
-    File entry =  dir.openNextFile();
-    if (! entry) {
-      // no more files
-      break;
-    }
-    if (entry.isDirectory()) {
-      //SerialUSB.println("/");
-      //printDirectory(entry, numTabs + 1);
-    } else {
-      // files have sizes, directories do not
-      SerialUSB.print(entry.name());
+void printDirectory(int deleteFile) {
+  SdFile file;
+  char myFileName[40];
+  sd.vwd()->rewind(); 
+  while (file.openNext(sd.vwd(), O_READ)) {
+    if(!file.isDir()){
+      file.printName(&SerialUSB);
       SerialUSB.print(',');
-      SerialUSB.println(entry.size(), DEC);
+      file.printFileSize(&SerialUSB);
+      SerialUSB.println();
+      file.getName(myFileName, 40);
+      file.close();
+      if(deleteFile){
+        if(!sd.remove(myFileName)) SerialUSB.print(" fail");
+      }
     }
-    entry.close();
+    else{
+      file.close();
+    }
   }
 }
 
@@ -235,7 +216,7 @@ void downloadFiles(){
   clearSerial();
 
   File file;
-  if(file = SD.open(filename)){
+  if(file = sd.open(filename)){
     sendFile(&file);
     file.close();
   }
