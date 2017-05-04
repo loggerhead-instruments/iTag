@@ -5,7 +5,6 @@
 
 #include <Wire.h>
 #include <SPI.h>
-//#include <SD.h>
 #include <SdFat.h>
 #include <RTCZero.h>
 #include "amx32.h"
@@ -13,19 +12,16 @@
 SdFat sd;
 File dataFile;
 
-// To Do:
-// - re-start when plug-in USB
-// - file delete does not delete files if disconnected and reconnected (format?)
-// - Optimize power draw
-// - Define reset function
-// autostart after timeout
-// voltage in V units
-
+// *** USER SETTINGS *********************//
 int printDiags = 0;
+float sensor_srate = 1.0;  
+float imu_srate = 100.0;
+int nbufsPerFile = 60; // number of seconds per file
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
 //#define MS5803_01bar
 #define MS5803_05bar
 //#define MS5803_30bar
+//****************************************//
 
 #ifdef MS5803_01bar
   #define MS5803_constant 32768.0
@@ -40,12 +36,8 @@ int printDiags = 0;
 #define CPU_HZ 48000000
 #define TIMER_PRESCALER_DIV 1024
 
-float sensor_srate = 1.0;  
-float imu_srate = 100.0;
-int ssCounter; // used to get different sample rates from one timer based on imu_srate
-
-int nbufsPerFile = 60; // number of seconds per file
 int bufCount = 0;
+int ssCounter; // used to get different sample rates from one timer based on imu_srate
 int file_count = 0;
 int introPeriod = 1;
 #define LEDSON 0  //change to 1 if want LEDs on all the time
@@ -338,7 +330,7 @@ void sensorInit(){
   digitalWrite(O2POW, HIGH); //O2 sensor needs to be on or ties up I2C bus
 // battery voltage measurement
   SerialUSB.print("Battery: ");
-  SerialUSB.println(analogRead(vSense));
+  SerialUSB.println(readVoltage());
   
   delay(100); // this delay is needed to give sensors time
   
@@ -672,9 +664,7 @@ void FileInit()
    if(File logFile = sd.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
       logFile.print(filename);
       logFile.print(',');
-      logFile.print(voltage); 
-      logFile.print(',');
-      logFile.println(intStatus());
+      logFile.println(voltage); 
       if(voltage < 3.0){
         logFile.println("Stopping because Voltage less than 3.0 V");
         logFile.close();  
@@ -782,7 +772,10 @@ void sampleSensors(void){  //interrupt at update_rate
 }
   
 float readVoltage(){
-  return analogRead(vSense);
+  float vDivider = 0.5;
+  float vReg = 3.3;
+  float voltage = (float) analogRead(vSense) * vReg / (vDivider * 1024.0);
+  return voltage;
 }
 
 void resetFunc(){
