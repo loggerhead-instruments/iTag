@@ -124,10 +124,10 @@ float read32(uint8_t reg)
   while(Wire.available()){
     u.b[i] = Wire.read();
     sprintf(buf, "%02X", u.b[i]);
-    SerialUSB.print(buf);
+   // SerialUSB.print(buf);
     i++;
   }
-  SerialUSB.print(" ");
+  //SerialUSB.print(" ");
 
   //SerialUSB.println();
   Wire.endTransmission();

@@ -19,8 +19,8 @@ float imu_srate = 100.0;
 int nbufsPerFile = 60; // number of seconds per file
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
 //#define MS5803_01bar
-#define MS5803_05bar
-//#define MS5803_30bar
+//#define MS5803_05bar
+#define MS5803_30bar
 //****************************************//
 
 #ifdef MS5803_01bar
@@ -133,7 +133,7 @@ volatile byte bufferposO2=0;
 byte halfbufO2 = O2BUFFERSIZE/2;
 boolean firstwrittenO2;
 
-float depthThreshold = 2.0; // if < depthThreshold turn VHF on
+float depthThreshold = -2.0; // if > depthThreshold turn VHF on; depth is more negative for deeper
 
 /* Create an rtc object */
 RTCZero rtc;
@@ -213,7 +213,7 @@ void loop() {
   newSecond = rtc.getSeconds();
   if (newSecond != oldSecond) {
     //sampleSensors();
-    if((depth < depthThreshold) | burnTriggered) {
+    if((depth > depthThreshold) | burnTriggered) {
       vhfOn();
     }
     else{
@@ -328,6 +328,7 @@ void sensorInit(){
   digitalWrite(O2POW, LOW);
   delay(100);
   digitalWrite(O2POW, HIGH); //O2 sensor needs to be on or ties up I2C bus
+  delay(1000);
 // battery voltage measurement
   SerialUSB.print("Battery: ");
   SerialUSB.println(readVoltage());
@@ -337,8 +338,9 @@ void sensorInit(){
   digitalWrite(BURN, LOW);
   
   // RGB
-  islInit(); 
-  SerialUSB.println("RGB");
+  
+  SerialUSB.print("RGBinit: ");
+  SerialUSB.println(islInit()); 
   for(int n=0; n<4; n++){
       islRead();
       SerialUSB.print("R:"); SerialUSB.print(islRed); SerialUSB.print("\t");
@@ -412,7 +414,7 @@ void sensorInit(){
       magnetom_y = (int16_t)  (((int16_t)imuTempBuffer[16] << 8) | imuTempBuffer[17]);   
       magnetom_z = (int16_t)  (((int16_t)imuTempBuffer[18] << 8) | imuTempBuffer[19]);  
   
-      SerialUSB.print("a/g/m/t:\t");
+      SerialUSB.print("a/g/m/t: \t");
       SerialUSB.print( accel_x); SerialUSB.print("\t");
       SerialUSB.print( accel_y); SerialUSB.print("\t");
       SerialUSB.print( accel_z); SerialUSB.print("\t");
