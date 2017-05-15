@@ -19,8 +19,8 @@ float imu_srate = 100.0;
 int nbufsPerFile = 60; // number of seconds per file
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
 //#define MS5803_01bar
-//#define MS5803_05bar
-#define MS5803_30bar
+#define MS5803_05bar
+//#define MS5803_30bar
 //****************************************//
 
 #ifdef MS5803_01bar
