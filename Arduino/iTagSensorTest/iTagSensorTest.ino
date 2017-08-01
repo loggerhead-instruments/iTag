@@ -118,7 +118,7 @@ void loop() {
     SerialUSB.println("Test Complete");
     SerialUSB.println("Restarting in 1s");
     mpuInit(1);
-    for (int i = 0 ; i<10000; i++){
+    for (int i = 0 ; i<100; i++){
       pollImu();
       delay(100);
     }
@@ -149,7 +149,7 @@ void sensorInit(){
   digitalWrite(BURN, HIGH);
   digitalWrite(VHF, HIGH);
   digitalWrite(O2POW, HIGH);
-/*
+
   SerialUSB.println("Green LED on");
 
   // RGB
@@ -217,7 +217,7 @@ void sensorInit(){
   rtc.setDate(day, month, year);
   //rtc.attachInterrupt(alarmMatch);
  // rtc.enableAlarm(rtc.MATCH_SS);
-*/
+
   // IMU with sleep
  // mpuInit(1);
  // startTimer();

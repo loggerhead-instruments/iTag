@@ -197,7 +197,7 @@ int setup_compass(void)
 
     /* Trigger slave 0 and slave 1 actions at each sample. */
     data = 0x03;
-    if (I2Cwrite(GyroAddress, 0x67, data))
+    if (I2Cwrite(GyroAddress, 0x67, data))  //I2C_MST_DELAY_CTRL register 103
         return -14;
 
     /* For the MPU9150, the auxiliary I2C bus needs to be set to VDD. */
