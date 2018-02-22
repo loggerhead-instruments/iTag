@@ -355,11 +355,14 @@ void sensorInit(){
   if(kellerInit()) {
     pressure_sensor = 2;   // 2 if present
     SerialUSB.println("Keller Pressure Detected");
-    kellerConvert();
-    delay(10);
-    kellerRead();
-    SerialUSB.print("Depth: "); SerialUSB.print(depth);
-    SerialUSB.print("  Temp: "); SerialUSB.println(temperature);
+      for (int x=0; x<5; x++){
+      kellerConvert();
+      delay(100);
+      kellerRead();
+      SerialUSB.print("Depth: "); SerialUSB.print(depth);
+      SerialUSB.print("  Temp: "); SerialUSB.println(temperature);
+      delay(500);
+    }
   }
   
   // Measurement Specialties
