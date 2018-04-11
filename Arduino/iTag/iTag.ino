@@ -670,13 +670,11 @@ void FileInit()
       logFile.print(filename);
       logFile.print(',');
       logFile.println(voltage); 
-      if(voltage < 3.0){
-        logFile.println("Stopping because Voltage less than 3.0 V");
+      if(voltage < 3.6){
+        logFile.println("Stopping because Voltage less than 3.6 V");
         logFile.close();  
-        // low voltage hang but keep checking voltage
-        while(readVoltage() < 3.0){
-            delay(30000);
-        }
+        
+        powerDown(); // power down; VHF on; Burn on
       }
       logFile.close();
    }
@@ -804,16 +802,7 @@ void vhfOff(){
   digitalWrite(VHF, LOW);
 }
 
-void BurnBabyBurn(){
-  digitalWrite(BURN, HIGH);
-  vhfOn();
-  
-  // want to stay here in lowest power state available
-  // possibly turn burn wire off after x minutes
-  while(1){
-    
-  }
-}
+
 
 // Calculates Accurate UNIX Time Based on RTC Timestamp
 unsigned long RTCToUNIXTime(int uYear, int uMonth, int uDay, int uHour, int uMinute, int uSecond){
@@ -910,3 +899,14 @@ void stopTimer(){
   // TcCount16* TC = (TcCount16*) TC3; // get timer struct
    NVIC_DisableIRQ(TC3_IRQn);
 }
+
+void powerDown(){
+  stopTimer(); // stop sampling
+  mpuInit(0); // turn off MPU
+  islSleep(); // sleep RGB light sensor
+  vhfOn(); // turn on VHF
+  digitalWrite(BURN, HIGH); // burn on
+
+  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // tag to sleep
+}
+
