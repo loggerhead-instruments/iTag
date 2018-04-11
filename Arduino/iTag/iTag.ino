@@ -906,6 +906,7 @@ void powerDown(){
   islSleep(); // sleep RGB light sensor
   vhfOn(); // turn on VHF
   digitalWrite(BURN, HIGH); // burn on
+  digitalWrite(ledGreen, LOW);
 
   SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // tag to sleep
 }
