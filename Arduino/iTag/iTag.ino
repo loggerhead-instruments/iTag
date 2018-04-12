@@ -675,6 +675,7 @@ void FileInit()
         logFile.close();  
         
         powerDown(); // power down; VHF on; Burn on
+        SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
         __WFI(); // enter sleep mode and wait for interrupt
       }
       logFile.close();
@@ -907,7 +908,7 @@ void powerDown(){
   islSleep(); // sleep RGB light sensor
   vhfOn(); // turn on VHF
   digitalWrite(BURN, HIGH); // burn on
-  digitalWrite(ledGreen, LOW);
+  digitalWrite(ledGreen, LED_OFF);
 
   SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // tag to sleep
 }
