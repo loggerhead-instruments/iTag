@@ -8,6 +8,7 @@
 #include <SdFat.h>
 #include <RTCZero.h>
 #include "amx32.h"
+#include "LowPower.h"
 
 SdFat sd;
 File dataFile;
@@ -671,12 +672,15 @@ void FileInit()
       logFile.print(',');
       logFile.println(voltage); 
       if(voltage < 3.6){
+        stopTimer(); // stop sampling
         logFile.println("Stopping because Voltage less than 3.6 V");
         logFile.close();  
         
-        powerDown(); // power down; VHF on; Burn on
-        SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
-        __WFI(); // enter sleep mode and wait for interrupt
+        powerDown(); // power down sensors; VHF on; Burn on
+        delay(100);
+        digitalWrite(ledGreen, LED_OFF);
+        USBDevice.detach();
+        LowPower.standby(); 
       }
       logFile.close();
    }
@@ -903,13 +907,10 @@ void stopTimer(){
 }
 
 void powerDown(){
-  stopTimer(); // stop sampling
   mpuInit(0); // turn off MPU
   islSleep(); // sleep RGB light sensor
   vhfOn(); // turn on VHF
   digitalWrite(BURN, HIGH); // burn on
-  digitalWrite(ledGreen, LED_OFF);
-
-  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // tag to sleep
+  digitalWrite(ledGreen, LED_ON);
 }
 
