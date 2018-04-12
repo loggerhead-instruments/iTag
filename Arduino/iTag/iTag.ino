@@ -675,6 +675,7 @@ void FileInit()
         logFile.close();  
         
         powerDown(); // power down; VHF on; Burn on
+        __WFI(); // enter sleep mode and wait for interrupt
       }
       logFile.close();
    }
