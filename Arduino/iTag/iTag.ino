@@ -181,15 +181,17 @@ void setup() {
   if (!sd.begin(chipSelect, SPI_FULL_SPEED)) {
     SerialUSB.println("Card failed");
   }
-  
+
   setupMenu();  
   sensorInit();
+
   if(printDiags) SerialUSB.println("Sensors initialized");
   setupDataStructures();
   if(printDiags) SerialUSB.println("Data structures initialized");
 
   resetGyroFIFO(); // reset Gyro FIFO
   FileInit();
+  
   if(printDiags) SerialUSB.println("Card initialized"); 
   if(printDiags) SerialUSB.println("Starting main loop");
   startTimer((int) imu_srate); // start timer
@@ -677,9 +679,7 @@ void FileInit()
         logFile.close();  
         
         powerDown(); // power down sensors; VHF on; Burn on
-        delay(100);
-        digitalWrite(ledGreen, LED_OFF);
-        USBDevice.detach();
+        delay(1000);
         LowPower.standby(); 
       }
       logFile.close();
@@ -911,6 +911,6 @@ void powerDown(){
   islSleep(); // sleep RGB light sensor
   vhfOn(); // turn on VHF
   digitalWrite(BURN, HIGH); // burn on
-  digitalWrite(ledGreen, LED_ON);
+  digitalWrite(ledGreen, LED_OFF);
 }
 
