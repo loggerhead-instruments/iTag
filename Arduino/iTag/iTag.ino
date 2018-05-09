@@ -168,6 +168,7 @@ long burnTime;
 #define SECONDS_IN_LEAP 31622400
 
 void setup() {
+  dfh.Version = 20180509; //ULONG
   SerialUSB.begin(115200);
   pinMode(ledGreen, OUTPUT);
   digitalWrite(ledGreen,LED_ON);
@@ -672,7 +673,9 @@ void FileInit()
    if(File logFile = sd.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
       logFile.print(filename);
       logFile.print(',');
-      logFile.println(voltage); 
+      logFile.print(voltage); 
+      logFile.print(',');
+      logFile.println(dfh.Version);
       if(voltage < 3.6){
         stopTimer(); // stop sampling
         logFile.println("Stopping because Voltage less than 3.6 V");
