@@ -24,7 +24,7 @@ void setupMenu(){
           clearSerial();
           break;
         case 52: // sensor Test
-          sensorInit();
+          sensorInit(0);
           clearSerial();
           break;
         case 53: // delete Files
@@ -56,7 +56,10 @@ void setupMenu(){
         case 56: // set burn minutes
           setBurnTime();
           break;
-          
+        case 57: // test with store to card
+          sensorInit(1);
+          clearSerial();
+          break;
       }
       inByte = 0;
    //   displayMenu();

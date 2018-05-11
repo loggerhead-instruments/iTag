@@ -191,7 +191,7 @@ void setup() {
   }
 
   setupMenu();  
-  sensorInit();
+  sensorInit(0);
 
   if(printDiags) SerialUSB.println("Sensors initialized");
   setupDataStructures();
@@ -319,7 +319,7 @@ void loop() {
   }
 }
 
-void sensorInit(){
+void sensorInit(int storeData){
  // initialize and test sensors
   SerialUSB.println("Sensor Init");
 
@@ -362,6 +362,22 @@ void sensorInit(){
   tone(PULSE_EN, 1000); // generate a 1000 Hz square wave
   SerialUSB.print("CondV"); SerialUSB.print("\t");
   SerialUSB.println("TempV");
+  File calFile;
+  if(storeData){
+    getTime();
+    calFile = sd.open("CAL.CSV",  O_CREAT | O_APPEND | O_WRITE);
+    calFile.print(year); calFile.print("-");
+    calFile.print(month); calFile.print("-");
+    calFile.print(day);
+    calFile.print(" ");
+    calFile.print(hour); calFile.print(":");
+    calFile.print(minute); calFile.print(":");
+    calFile.println(second);
+    calFile.print("Conductivity");
+    calFile.print(',');
+    calFile.println("Temperature"); 
+  }
+  
   for(int n=0; n<200; n++){
     myADC.startConversion(MCP342X_CHANNEL_1);
     myADC.getResult(&conductivityV);
@@ -370,9 +386,17 @@ void sensorInit(){
     myADC.getResult(&temperatureV);
     SerialUSB.print(conductivityV); SerialUSB.print("\t");
     SerialUSB.println(temperatureV);
-    delay(200);
+    if(storeData){
+      calFile.print(conductivityV);
+      calFile.print(',');
+      calFile.println(temperatureV);
+    }
+    delay(100);
   }
 
+  if(storeData){
+    calFile.close();
+  }
   
   // RGB
   SerialUSB.print("RGBinit: ");
