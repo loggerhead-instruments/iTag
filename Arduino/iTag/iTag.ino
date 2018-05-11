@@ -9,6 +9,7 @@
 #include <RTCZero.h>
 #include "amx32.h"
 #include "LowPower.h"
+#include  <MCP342X.h>
 
 SdFat sd;
 File dataFile;
@@ -23,6 +24,10 @@ int nbufsPerFile = 60; // number of seconds per file
 //#define MS5803_05bar
 #define MS5803_30bar
 //****************************************//
+
+MCP342X myADC(0x6E);
+int16_t conductivityV;
+int16_t temperatureV;
 
 #ifdef MS5803_01bar
   #define MS5803_constant 32768.0
@@ -58,6 +63,8 @@ const int VHF = PIN_LED_RXL;
 const int O2POW = 4;
 const int chipSelect = 10;
 const int mpuInterrupt = 13;
+// pin 6 is PA20
+#define PULSE_EN 6
 
 byte toggleLED = 1;
 int pressure_sensor;
@@ -340,9 +347,34 @@ void sensorInit(){
   delay(100); // this delay is needed to give sensors time
   
   digitalWrite(BURN, LOW);
+
+  // Conductivity-Temperature
+  SerialUSB.println("C-T");
+  SerialUSB.println(myADC.testConnection() ? "MCP342X connection successful" : "MCP342X connection failed");
+  myADC.configure( MCP342X_MODE_CONTINUOUS |
+                   MCP342X_CHANNEL_1 |
+                   MCP342X_CHANNEL_2 |
+                   MCP342X_SIZE_16BIT |
+                   MCP342X_GAIN_1X
+                 );
+  SerialUSB.println(myADC.getConfigRegShdw(), HEX);
+  pinMode(PULSE_EN, OUTPUT);  // PWM on pin 20
+  tone(PULSE_EN, 1000); // generate a 1000 Hz square wave
+  SerialUSB.print("CondV"); SerialUSB.print("\t");
+  SerialUSB.println("TempV");
+  for(int n=0; n<200; n++){
+    myADC.startConversion(MCP342X_CHANNEL_1);
+    myADC.getResult(&conductivityV);
+    
+    myADC.startConversion(MCP342X_CHANNEL_2);
+    myADC.getResult(&temperatureV);
+    SerialUSB.print(conductivityV); SerialUSB.print("\t");
+    SerialUSB.println(temperatureV);
+    delay(200);
+  }
+
   
   // RGB
-  
   SerialUSB.print("RGBinit: ");
   SerialUSB.println(islInit()); 
   for(int n=0; n<4; n++){
