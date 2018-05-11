@@ -44,6 +44,7 @@ void loop() {
   if(count>200){
     myADC.startConversion(MCP342X_CHANNEL_1);
     myADC.getResult(&result1);
+    delay(1);
     myADC.startConversion(MCP342X_CHANNEL_2);
     myADC.getResult(&result2);
     Serial.print(result1);
