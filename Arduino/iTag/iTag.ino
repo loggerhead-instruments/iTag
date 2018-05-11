@@ -355,7 +355,7 @@ void sensorInit(int storeData){
                    MCP342X_CHANNEL_1 |
                    MCP342X_CHANNEL_2 |
                    MCP342X_SIZE_16BIT |
-                   MCP342X_GAIN_1X
+                   MCP342X_GAIN_2X
                  );
   SerialUSB.println(myADC.getConfigRegShdw(), HEX);
   pinMode(PULSE_EN, OUTPUT);  // PWM on pin 20
