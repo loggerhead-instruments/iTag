@@ -181,10 +181,10 @@ void setup() {
   digitalWrite(ledGreen,LED_ON);
   delay(10000);
   Wire.begin();
-  Wire.setClock(400);  // set I2C clock to 400 kHz
+  Wire.setClock(100);  // set I2C clock to 100 kHz. O2 sensor limited to 100 kHz speed
   rtc.begin();
 
-  SerialUSB.println("iTag");
+  SerialUSB.println("iTag O2 Calibration");
   // see if the card is present and can be initialized:
   if (!sd.begin(chipSelect, SPI_FULL_SPEED)) {
     SerialUSB.println("Card failed");
@@ -363,22 +363,22 @@ void sensorInit(int storeData){
   SerialUSB.print("CondV"); SerialUSB.print("\t");
   SerialUSB.println("TempV");
   File calFile;
-  if(storeData){
-    getTime();
-    calFile = sd.open("CAL.CSV",  O_CREAT | O_APPEND | O_WRITE);
-    calFile.print(year); calFile.print("-");
-    calFile.print(month); calFile.print("-");
-    calFile.print(day);
-    calFile.print(" ");
-    calFile.print(hour); calFile.print(":");
-    calFile.print(minute); calFile.print(":");
-    calFile.println(second);
-    calFile.print("Conductivity");
-    calFile.print(',');
-    calFile.println("Temperature"); 
-  }
+//  if(storeData){
+//    getTime();
+//    calFile = sd.open("CT.CSV",  O_CREAT | O_APPEND | O_WRITE);
+//    calFile.print(year); calFile.print("-");
+//    calFile.print(month); calFile.print("-");
+//    calFile.print(day);
+//    calFile.print(" ");
+//    calFile.print(hour); calFile.print(":");
+//    calFile.print(minute); calFile.print(":");
+//    calFile.println(second);
+//    calFile.print("Conductivity");
+//    calFile.print(',');
+//    calFile.println("Temperature"); 
+//  }
   
-  for(int n=0; n<200; n++){
+  for(int n=0; n<10; n++){
     myADC.startConversion(MCP342X_CHANNEL_1);
     myADC.getResult(&conductivityV);
     
@@ -386,17 +386,17 @@ void sensorInit(int storeData){
     myADC.getResult(&temperatureV);
     SerialUSB.print(conductivityV); SerialUSB.print("\t");
     SerialUSB.println(temperatureV);
-    if(storeData){
-      calFile.print(conductivityV);
-      calFile.print(',');
-      calFile.println(temperatureV);
-    }
+//    if(storeData){
+//      calFile.print(conductivityV);
+//      calFile.print(',');
+//      calFile.println(temperatureV);
+//    }
     delay(100);
   }
 
-  if(storeData){
-    calFile.close();
-  }
+//  if(storeData){
+//    calFile.close();
+//  }
   
   // RGB
   SerialUSB.print("RGBinit: ");
@@ -450,16 +450,58 @@ void sensorInit(int storeData){
     SerialUSB.print("  Temp: "); SerialUSB.println(temperature);
   }
 
+  //
   // Presens O2
-  SerialUSB.print("O2 status:");
-  SerialUSB.println(o2Status());
-  for (int n=0; n<2; n++){
-    SerialUSB.print("O2 Temp:"); SerialUSB.print(o2Temperature());
-    SerialUSB.print("  Phase:"); SerialUSB.print(o2Phase());
-    SerialUSB.print("  Amplitude:"); SerialUSB.println(o2Amplitude());
+  //
+  if(storeData){
+    getTime();
+    calFile = sd.open("O2.CSV",  O_CREAT | O_APPEND | O_WRITE);
+    calFile.print(year); calFile.print("-");
+    calFile.print(month); calFile.print("-");
+    calFile.print(day);
+    calFile.print(" ");
+    calFile.print(hour); calFile.print(":");
+    calFile.print(minute); calFile.print(":");
+    calFile.println(second);
+    calFile.print("O2_Temperature");
+    calFile.print(',');
+    calFile.print("O2_Phase"); 
+    calFile.print(',');
+    calFile.println("O2_Amp"); 
   }
 
+  //o2Srate(1);
+  o2Trigger(); //set to trigger mode
+  SerialUSB.print("O2 status:");
+  SerialUSB.println(o2Status());
+  float o2T, o2P, o2A;
+  for (int n=0; n<60; n++){
+    o2T = o2Temperature();
+    SerialUSB.print("O2 Temp:"); SerialUSB.print(o2T);
+    
+    o2P = o2Phase();
+    SerialUSB.print("  Phase:"); SerialUSB.print(o2P);
+    
+    o2A = o2Amplitude();
+    SerialUSB.print("  Amplitude:"); SerialUSB.println(o2A);
+    SerialUSB.flush();
+    
+    if(storeData){
+      calFile.print(o2T); calFile.print(',');
+      calFile.print(o2P); calFile.print(',');
+      calFile.println(o2A);
+    }
+    o2Trigger();
+    delay(1000);
+  }
+
+  if(storeData){
+    calFile.close();
+  }
+
+  //
   // IMU
+  //
   SerialUSB.println(mpuInit(1));
     for(int i=0; i<10; i++){
       readImu();
