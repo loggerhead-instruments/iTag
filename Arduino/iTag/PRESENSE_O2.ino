@@ -54,10 +54,6 @@ int addr = 0x48;
 uint16_t o2Temp;
 uint8_t oStatus;
 
-int o2Init(){
-  return(I2Cwrite(addr,CONTROL, 0x14)); //set to trigger mode
-}
-
 int o2Srate(int srate){
   return(I2Cwrite(addr, SRATE, srate));
 }
@@ -68,7 +64,7 @@ int o2Status(){
 }
 
 int o2Trigger(){
-  return(I2Cwrite(addr,CONTROL, TRIGGER)); //set to trigger mode
+  return(I2Cwrite(addr,CONTROL, TRIGGER)); //set to trigger mode and trigger
 }
 
 float o2Temperature(){

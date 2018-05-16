@@ -181,7 +181,7 @@ void setup() {
   digitalWrite(ledGreen,LED_ON);
   delay(10000);
   Wire.begin();
-  Wire.setClock(100);  // set I2C clock to 100 kHz. O2 sensor limited to 100 kHz speed
+  Wire.setClock(400);  // set I2C clock to 100 kHz. O2 sensor limited to 100 kHz speed
   rtc.begin();
 
   SerialUSB.println("iTag O2 Calibration");
@@ -470,8 +470,8 @@ void sensorInit(int storeData){
     calFile.println("O2_Amp"); 
   }
 
-  //o2Srate(1);
-  o2Trigger(); //set to trigger mode
+  o2Srate(1);
+  //o2Trigger(); //set to trigger mode
   SerialUSB.print("O2 status:");
   SerialUSB.println(o2Status());
   float o2T, o2P, o2A;
@@ -491,7 +491,8 @@ void sensorInit(int storeData){
       calFile.print(o2P); calFile.print(',');
       calFile.println(o2A);
     }
-    o2Trigger();
+    //delay(500);
+    //o2Trigger();
     delay(1000);
   }
 
