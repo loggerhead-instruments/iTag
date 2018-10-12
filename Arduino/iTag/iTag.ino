@@ -4,14 +4,14 @@
 
 
 #include <Wire.h>
-#include <SPI.h>
-#include <SdFat.h>
-#include <RTCZero.h>
-#include "amx32.h"
-#include "LowPower.h"
-
-SdFat sd;
-File dataFile;
+  #include <SPI.h>
+  #include <SdFat.h>
+  #include <RTCZero.h>
+  #include "amx32.h"
+  #include "LowPower.h"
+  
+  SdFat sd;
+  File dataFile;
 
 // *** USER SETTINGS *********************//
 int printDiags = 0;
@@ -168,7 +168,7 @@ long burnTime;
 #define SECONDS_IN_LEAP 31622400
 
 void setup() {
-  dfh.Version = 20180509; //ULONG
+  dfh.Version = 20180905; //ULONG
   SerialUSB.begin(115200);
   pinMode(ledGreen, OUTPUT);
   digitalWrite(ledGreen,LED_ON);

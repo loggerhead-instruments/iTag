@@ -221,7 +221,8 @@ void downloadFiles(){
     file.close();
   }
   else{
-    SerialUSB.println("File open fail");
+    SerialUSB.print("File open fail: ");
+    SerialUSB.println(filename);
   }
 }
 
