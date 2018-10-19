@@ -193,8 +193,11 @@ void setup() {
   resetGyroFIFO(); // reset Gyro FIFO
   FileInit();
   
-  if(printDiags) SerialUSB.println("Card initialized"); 
-  if(printDiags) SerialUSB.println("Starting main loop");
+  SerialUSB.println("Running"); 
+  SerialUSB.println("USB disabled");
+  SerialUSB.println("Ignore error");
+  delay(500); // time to display
+  USB->DEVICE.CTRLA.reg &= ~USB_CTRLA_ENABLE;
   startTimer((int) imu_srate); // start timer
 
   if (pressure_sensor==2) updateTemp();  // get first reading ready
