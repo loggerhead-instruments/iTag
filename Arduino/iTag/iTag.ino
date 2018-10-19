@@ -1,5 +1,5 @@
 // iTag
-// Board bootloader loaded using AtmelICE and Board: Arduino Zero Programming Port
+// Board bootloader loaded using AtmelICE: Arduino Zero Programming Port
 // Board programmed using USB via Arduino Zero Native USB port
 
 
@@ -168,7 +168,7 @@ long burnTime;
 #define SECONDS_IN_LEAP 31622400
 
 void setup() {
-  dfh.Version = 20180905; //ULONG
+  dfh.Version = 20181019; //ULONG
   SerialUSB.begin(115200);
   pinMode(ledGreen, OUTPUT);
   digitalWrite(ledGreen,LED_ON);
