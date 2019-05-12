@@ -156,7 +156,7 @@ volatile byte burnDay = 1;
 volatile byte burnMonth = 1;
 volatile byte burnYear = 17;
 
-unsigned int burnDurMin = 30; // how long burn wire is activated
+unsigned int burnDurMin = 90; // how long burn wire is activated
 unsigned int burnDelayMinutes = 0;
 int burnFlag = 0; //0=no Burn; 1=burn burnDelayMinutes after start; 2=burn at specific time
 int burnTriggered = 0; //set to 1 once burn happened so can use that to turn on VHF and go to sleep
@@ -679,12 +679,27 @@ void FileInit()
       logFile.print(voltage); 
       logFile.print(',');
       logFile.println(dfh.Version);
-      if(voltage < 3.6){
+      if(voltage < 3.7){
         stopTimer(); // stop sampling
-        logFile.println("Stopping because Voltage less than 3.6 V");
+        logFile.println("Stopping because Voltage less than 3.7 V");
         logFile.close();  
         
-        powerDown(); // power down sensors; VHF on; Burn on
+        islSleep(); // sleep RGB light sensor
+        digitalWrite(ledGreen, LED_OFF);
+        vhfOn(); // turn on VHF        
+
+        // activate burn wire to make sure tag is off
+        digitalWrite(BURN, HIGH); // burn on
+        int burnDurNum = burnDurMin*60/8; // number of 8s lowpower delays
+        for(i=0; i < burnDurNum; i++){
+          LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // instead of delay(8000) ; 
+        }
+        digitalWrite(BURN, LOW);  // burn off
+        
+        // turn off microprocessor  - WHAT ABOUT IMU UNIT?
+        mpuInit(0); // turn off MPU - CAN THIS BE DONE BEFORE BURN?
+
+        // Finally, go into standby mode
         delay(1000);
         LowPower.standby(); 
       }
@@ -911,12 +926,3 @@ void stopTimer(){
   // TcCount16* TC = (TcCount16*) TC3; // get timer struct
    NVIC_DisableIRQ(TC3_IRQn);
 }
-
-void powerDown(){
-  mpuInit(0); // turn off MPU
-  islSleep(); // sleep RGB light sensor
-  vhfOn(); // turn on VHF
-  digitalWrite(BURN, HIGH); // burn on
-  digitalWrite(ledGreen, LED_OFF);
-}
-
