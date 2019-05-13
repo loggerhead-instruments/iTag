@@ -683,24 +683,23 @@ void FileInit()
         stopTimer(); // stop sampling
         logFile.println("Stopping because Voltage less than 3.7 V");
         logFile.close();  
-        
+
+        mpuInit(0); // turn off motion processing unit
         islSleep(); // sleep RGB light sensor
         digitalWrite(ledGreen, LED_OFF);
         vhfOn(); // turn on VHF        
 
         // activate burn wire to make sure tag is off
+        // but sleep microprocessor during burn
+        // future: check if burn has already fired
         digitalWrite(BURN, HIGH); // burn on
         int burnDurNum = burnDurMin*60/8; // number of 8s lowpower delays
         for(i=0; i < burnDurNum; i++){
           LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // instead of delay(8000) ; 
         }
         digitalWrite(BURN, LOW);  // burn off
-        
-        // turn off microprocessor  - WHAT ABOUT IMU UNIT?
-        mpuInit(0); // turn off MPU - CAN THIS BE DONE BEFORE BURN?
 
         // Finally, go into standby mode
-        delay(1000);
         LowPower.standby(); 
       }
       logFile.close();
