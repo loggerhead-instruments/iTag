@@ -693,9 +693,10 @@ void FileInit()
         // but sleep microprocessor during burn
         // future: check if burn has already fired
         digitalWrite(BURN, HIGH); // burn on
+        
         int burnDurNum = burnDurMin*60/8; // number of 8s lowpower delays
         for(i=0; i < burnDurNum; i++){
-          LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // instead of delay(8000) ; 
+          delay(8000) ; // LowPower.powerDown only for AVR-based arduino; instead use RTCZero library to attach interrupt
         }
         digitalWrite(BURN, LOW);  // burn off
 
