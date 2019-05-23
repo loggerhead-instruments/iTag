@@ -221,7 +221,8 @@ void loop() {
   newSecond = rtc.getSeconds();
   if (newSecond != oldSecond) {
     //sampleSensors();
-    if((depth > depthThreshold) | burnTriggered) {
+    //if((depth > depthThreshold) | burnTriggered) {
+    if((depth < 0.02) | burnTriggered) {    // KELLER SENSOR ONLY
       vhfOn();
     }
     else{
