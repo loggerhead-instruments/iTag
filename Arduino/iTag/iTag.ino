@@ -134,7 +134,7 @@ volatile byte bufferposO2=0;
 byte halfbufO2 = O2BUFFERSIZE/2;
 boolean firstwrittenO2;
 
-float depthThreshold = -2.0; // if > depthThreshold turn VHF on; depth is more negative for deeper
+float depthThreshold = -2.0; // if > depthThreshold turn VHF on; depth is more negative for deeper // BUG: depth may be positive!
 
 /* Create an rtc object */
 RTCZero rtc;
@@ -156,7 +156,7 @@ volatile byte burnDay = 1;
 volatile byte burnMonth = 1;
 volatile byte burnYear = 17;
 
-unsigned int burnDurMin = 50; // how long burn wire is activated
+unsigned int burnDurMin = 60; // how long burn wire is activated - will sleep after, so give it a bit extra to get temp/light profile while ascending to surface
 unsigned int burnDelayMinutes = 0;
 int burnFlag = 0; //0=no Burn; 1=burn burnDelayMinutes after start; 2=burn at specific time
 int burnTriggered = 0; //set to 1 once burn happened so can use that to turn on VHF 
