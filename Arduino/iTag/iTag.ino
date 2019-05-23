@@ -156,10 +156,11 @@ volatile byte burnDay = 1;
 volatile byte burnMonth = 1;
 volatile byte burnYear = 17;
 
-unsigned int burnDurMin = 90; // how long burn wire is activated
+unsigned int burnDurMin = 50; // how long burn wire is activated
 unsigned int burnDelayMinutes = 0;
 int burnFlag = 0; //0=no Burn; 1=burn burnDelayMinutes after start; 2=burn at specific time
-int burnTriggered = 0; //set to 1 once burn happened so can use that to turn on VHF and go to sleep
+int burnTriggered = 0; //set to 1 once burn happened so can use that to turn on VHF 
+int burnDone = 0; //set to 1 once burn complete so can use that to go to sleep
 long burnTime;
 #define SECONDS_IN_MINUTE 60
 #define SECONDS_IN_HOUR 3600
@@ -230,11 +231,17 @@ void loop() {
     if(burnFlag){
       long curTime = RTCToUNIXTime(year, month, day, hour, minute, second);
       long diffMinutes = (curTime - burnTime) / 60;
-      if((curTime > burnTime) & (diffMinutes < burnDurMin)) {
-        digitalWrite(BURN, HIGH);
-        burnTriggered = 1;
+      if(curTime > burnTime) {
+        if (diffMinutes < burnDurMin) {
+          digitalWrite(BURN, HIGH);
+          burnTriggered = 1;
         }
-      else{
+        else {
+          digitalWrite(BURN, LOW);
+          burnDone = 1;
+        }
+      }
+      else {
         digitalWrite(BURN, LOW);
       }
     }
@@ -679,25 +686,35 @@ void FileInit()
       logFile.print(voltage); 
       logFile.print(',');
       logFile.println(dfh.Version);
-      if(voltage < 3.7){
+      if ( (voltage < 3.7) || (burnDone)) {
         stopTimer(); // stop sampling
-        logFile.println("Stopping because Voltage less than 3.7 V");
+        if (!burnDone) {
+          logFile.println("Stopping because Voltage less than 3.7 V");
+        }
+        else {
+          logFile.println("Stopping because burn is complete");
+        }
         logFile.close();  
 
+        // turn on VHF
+        vhfOn(); // turn on VHF        
+
+        // turn off most components
         mpuInit(0); // turn off motion processing unit
         islSleep(); // sleep RGB light sensor
         digitalWrite(ledGreen, LED_OFF);
-        vhfOn(); // turn on VHF        
+        
 
         // activate burn wire to make sure tag is off
-        // but sleep microprocessor during burn
-        // future: check if burn has already fired
-        digitalWrite(BURN, HIGH); // burn on
-        
-        int burnDurNum = burnDurMin*60/8; // number of 8s lowpower delays
-        for(i=0; i < burnDurNum; i++){
-          delay(8000) ; // LowPower.powerDown only for AVR-based arduino; instead use RTCZero library to attach interrupt
+        if (!burnDone) {
+          digitalWrite(BURN, HIGH); // burn on
+          int burnDurNum = burnDurMin*60/8; // number of 8s lowpower delays
+          for(int i=0; i < burnDurNum; i++){
+            delay(8000) ; // LowPower.powerDown only for AVR-based arduino; instead use RTCZero library to attach interrupt
+          }
         }
+        
+        // Turn off burn
         digitalWrite(BURN, LOW);  // burn off
 
         // Finally, go into standby mode
