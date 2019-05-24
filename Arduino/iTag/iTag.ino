@@ -222,7 +222,7 @@ void loop() {
   if (newSecond != oldSecond) {
     //sampleSensors();
     //if((depth > depthThreshold) | burnTriggered) {
-    if((depth < 0.02) | burnTriggered) {    // KELLER SENSOR ONLY
+    if((depth < 0.2) | burnTriggered) {    // KELLER SENSOR ONLY
       vhfOn();
     }
     else{
