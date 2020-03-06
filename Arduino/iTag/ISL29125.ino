@@ -87,7 +87,7 @@ int _addr = 0x44;
 
 bool islInit(){
   bool ret = true;
-  ret = config(CFG1_MODE_RGB | CFG1_10KLUX, CFG2_IR_ADJUST_HIGH, CFG_DEFAULT); 
+  ret = config(CFG1_MODE_RGB | CFG1_10KLUX, CFG2_IR_ADJUST_HIGH, CFG_DEFAULT); //CFG1_375LUX for light sensitivity, also calibration in itag.ino
   return ret;
 }
 
@@ -176,6 +176,3 @@ bool config(uint8_t config1, uint8_t config2, uint8_t config3)
   }
   return ret;
 }
-
-
-
