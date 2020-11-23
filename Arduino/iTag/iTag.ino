@@ -1,5 +1,5 @@
 // iTag
-// Board bootloader loaded using AtmelICE: Arduino Zero Programming Port
+// Board bootloader loaded using AtmelICE
 // Board programmed using USB via Arduino Zero Native USB port
 
 
