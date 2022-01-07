@@ -1,0 +1,22 @@
+---------------------------------------------------------------------------
+NCDrill File Report For: iTag4.PcbDoc   11/10/2016  7:43:43 AM
+---------------------------------------------------------------------------
+
+Layer Pair : Top Layer to Bottom Layer
+ASCII RoundHoles File : iTag4-RoundHoles.TXT
+ASCII SlotHoles File : iTag4-SlotHoles.TXT
+
+Tool         Hole Size           Hole Type     Hole Count Plated       Tool Travel
+---------------------------------------------------------------------------
+T1        12mil (0.3048mm)         Round          24               5.62 Inch (142.82 mm)
+T2        19.68mil (0.49987mm)     Round          5                0.43 Inch (10.94 mm)
+T3        25.59mil (0.64999mm)     Round          10               0.45 Inch (11.43 mm)
+T4        27.56mil (0.70002mm)     Round          6                0.25 Inch (6.35 mm)
+T5        30mil (0.762mm)          Round          7                2.70 Inch (68.67 mm)
+T6        31.5mil (0.8001mm)       Slot           2                283.75 Inch (7207.14 mm)
+T7        33.46mil (0.84988mm)     Round          2                0.20 Inch (5.00 mm)
+T8        35.43mil (0.89992mm)     Round          8                0.58 Inch (14.75 mm)
+---------------------------------------------------------------------------
+Totals                                            64               293.98 Inch (7467.10 mm)
+
+Total Processing Time (hh:mm:ss) : 00:00:00

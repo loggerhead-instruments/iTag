@@ -1,0 +1,38 @@
+Bill of Material for 
+On 3/22/2018 at 3:54:19 PM
+
+ Comment             Pattern     Quantity  Components
+------------------------------------------------------------------------------
+ 0.1 uF              0402             2    C6, C7                       Ceramic Chip Capacitor - Standard 
+ 0.1uF               0402             8    C3, C4, C5, C11, C13, C14    Ceramic Chip Capacitor - Standard 
+                                           C16, C18
+ 100k                3-0603           2    R9, R10                      Precision Thick Film Chip Resistor, 10 Ohm to 1M Ohm Range, 1% and 0.5% Tolerance, 0603 Size, 0.063 W 
+ 100X                3-0603           3    R3, R4, R6                   Precision Thick Film Chip Resistor, 10 Ohm to 1M Ohm Range, 1% and 0.5% Tolerance, 0603 Size, 0.063 W 
+ 10K                 3-0603           2    R7, R11                      Precision Thick Film Chip Resistor, 10 Ohm to 1M Ohm Range, 1% and 0.5% Tolerance, 0603 Size, 0.063 W 
+ 10nF                0402             1    C17                          Ceramic Chip Capacitor - Standard 
+ 10uF                Tant0805         1    C10                                               
+ 12.5                0402             2    C1, C2                       Ceramic Chip Capacitor - Standard 
+ 1uF                 Tant0805         4    C8, C9, C12, C15                                  
+ 300Ohm              0805 (M2125) Ferrite    1    L1                           Ferrite 25mOhm@DC,  60 Ohm@100MHz 
+ 330X                3-0603           2    R5, R12                      Precision Thick Film Chip Resistor, 10 Ohm to 1M Ohm Range, 1% and 0.5% Tolerance, 0603 Size, 0.063 W 
+ 4.7k                3-0603           2    R1, R2                       Precision Thick Film Chip Resistor, 10 Ohm to 1M Ohm Range, 1% and 0.5% Tolerance, 0603 Size, 0.063 W 
+ ATSAMD21GA-MUT      QFN127P600-8N    1    U1                                                
+ Cortex Debug        Header_2x5_50mil    1    P4                                                
+ DMN5L06TK-7         SOT-523          2    Q1, Q2                       Ultra-low leakage Enhanced MOSFET 
+ Do not place        3-0603           1    R8                           Precision Thick Film Chip Resistor, 10 Ohm to 1M Ohm Range, 1% and 0.5% Tolerance, 0603 Size, 0.063 W 
+ HDR_2x1_2mm         HDR_2x1_2mm      2    P5, P7                                            
+ HDR_4x1_2mm         Hdr_4x1_2mm      1    P3                                                
+ Header 6x1 1.27mm   Header6x1 1.27mm    1    P1                                                
+ Keller7LD           Keller7LD        1    U2                           Keller Pressure/Temp 
+ LED_0603            Diode0603        2    D1, D4                                            
+ LP3985IM5-3.3       MF05A_N          1    U5                           Micropower, 150mA Low-Noise Ultra Low-Dropout CMOS Voltage Regulator, 5-pin SOT-23 
+ MCP73831T-2DCI/OT   SOT-23-OT5_N     1    U4                           Miniature Single-Cell, Fully Integrated Li-Ion, Li-Polymer Charge Management Controller, 4.2V, 5-Pin SOT-23, Industrial Temperature, Tape and Reel 
+ microSD reverse     miroSD_reverse    1    P2                                                
+ microUSB            microUSB-B       1    P6                                                
+ MPU9250             MPU6500          1    U6                           Invensense           
+ MS5803_Press        MS5803_Press     1    U3                                                
+ PRESENS O2 CUBE     PRESENS_O2       1    U8                                                
+ Reed_MK24           Reed MK24-B-3    1    *2                                                
+ RGB light           ODFN             1    U7                           RGB light sensor     
+ Shottky             DFLS130          1    D3                                                
+ XTAL_ABS06          XTAL-ABS06       1    *1                                                

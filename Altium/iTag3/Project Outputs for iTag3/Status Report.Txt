@@ -1,0 +1,10 @@
+Output: Generates pick and place files
+Type  : Pick Place
+From  : Variant [[No Variations]] of Project [iTag3.PrjPCB]
+   Generated File[Pick Place for iTag3.csv]
+
+
+Files Generated   : 1
+Documents Printed : 0
+
+Finished Output Generation At 1:19:03 PM On 10/24/2016

@@ -1,0 +1,11 @@
+Output: Simple BOM
+Type  : SimpleBOM
+From  : Variant [[No Variations]] of Project [iTag4.PrjPCB]
+   Generated File[iTag4.BOM]
+   Generated File[iTag4.CSV]
+
+
+Files Generated   : 2
+Documents Printed : 0
+
+Finished Output Generation At 3:54:19 PM On 3/22/2018
